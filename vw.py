@@ -25,6 +25,8 @@ def pai(pred, actual, num_areas):
         total+=area
     mean_area = total/float(nperiods)
     return mean_area
+
+
         
 def area(y):
     return sum(y)/float(len(y))
