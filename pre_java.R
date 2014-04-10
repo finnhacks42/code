@@ -1,0 +1,199 @@
+
+tplot <- function(t) {
+  barplot(t[order(t,decreasing=T)],las=2)
+}
+
+# returns distance in m
+sp_distance <- function(lat1,lon1,lat2,lon2) {
+  dlat <- as_radians(lat1 - lat2)
+  dlon <- as_radians(lon1- lon2)
+  lat1 <- as_radians(lat1)
+  lat2 <- as_radians(lat2)
+  a <- (sin(dlat/2))^2+((sin(dlon/2))^2)*cos(lat1)*cos(lat2)
+  c <- 2*atan2(sqrt(a),sqrt(1-a))
+  d <- 6371000*c
+  return(d)
+}
+
+
+#grd is a GridTopology object, df is a data frame with the 1st column being lon, and the 2nd lat
+hist_on_grid <- function(df,grd) {
+  df2 <- data.frame(df)
+  dims = attr(grd,'cells.dim')
+  offsets = attr(grd,'cellcentre.offset')
+  sizes = attr(grd,'cellsize')
+  width = dims[1]
+  height = dims[2]
+  result = rep(0,width*height) # create a vector of counts
+  
+  df2$cellx = ceiling((df[,1]-offsets[1])/sizes[1]) - 1
+  df2$cellx[df2$cellx < 0] <- 0
+  df2$celly = height - ceiling((df[,2]-offsets[2])/sizes[2]) - 1
+  df2$celly[df2$celly < 0] <- 0
+  
+  df2$cell <-  (df2$celly*width) + df2$cellx
+  df2$ones <- rep(1,nrow(df2)) 
+  
+  a <- aggregate(ones~cell,data=df2,sum)
+  for (row in 1:nrow(a)){
+    result[a[row,1]] <- a[row,2]
+  }
+  
+  return(result)
+}
+
+library(splancs)
+library(maptools)
+library(rgdal)
+library('aspace')
+
+# input data must have columns 'lon' and 'lat', grid size is size of cell in meters. Adds a cell column to the dataset.
+add_grid <- function(data,grid_size){
+  projection <- CRS("+proj=longlat +datum=WGS84")
+  crime <- SpatialPointsDataFrame(data[,c('lon','lat')], data)
+  # create a polygon representing the bounds of the data
+  x1 <- min(data$lon)
+  x2 <- max(data$lon)
+  y1 <- min(data$lat)
+  y2 <- max(data$lat)
+  bounds <- as.points(c(x1,x2,x2,x1),c(y1,y1,y2,y2))
+  
+  ref_lat = mean(y1,y2)
+  lon_dist = sp_distance(ref_lat,0,ref_lat,0.1) # the distance in m of a 10th of a degree of longitude (depends on latitude)
+  lat_dist = sp_distance(0,0,0.1,0) # the distance in km of a 10th of a degree of latitude. This is constant and idepended of the latitude and longitude
+  aspect = lon_dist/lat_dist 
+  width = sp_distance(ref_lat,x1,ref_lat,x2) # the width in meters ~delta(longitude)
+  height = sp_distance(x1,0,x2,0) # the height in meters = delta(latitude)
+  widthlon = x2 - x1
+  widthlat = y2 - y1
+  max_dim = max(width,height) # the maximum dimension in meters
+  
+  md <- round(max_dim/grid_size) # the largest number of cells accross the largest dimension
+  
+  # calculate a grid 
+  grd <- Sobj_SpatialGrid(crime,maxDim=md,asp = aspect)$SG 
+  proj4string(grd) <- projection
+  grd_top <- GridTopology(summary(grd)$grid[,1],cellsize=summary(grd)$grid[,2],cells.dim=summary(grd)$grid[,3])
+  grd.dims = attr(grd_top,'cells.dim')
+  offsets = attr(grd_top,'cellcentre.offset')
+  sizes = attr(grd_top,'cellsize')
+  ncells <- grd.dims[1]*grd.dims[2]
+  
+  data$cellx = ceiling((data[,'lon']-x1)/sizes[1]) - 1
+  data$cellx[data$cellx < 0] <- 0 
+  
+  data$celly = grd.dims[2] - ceiling((data[,'lat']-y1)/sizes[2]) - 1
+  data$celly[data$celly < 0] <- 0
+  
+  # label each cell from left to right then top to bottom. Minimum possible value is 0. Maximum possible is (ncells-1)
+  data$cell = (data$celly*grd.dims[1]) + data$cellx
+  return(list(data,ncells,grd_top))
+}
+
+#data, the data which must contain a ones column and a cell column.
+#ncells, the number of cells in the grid on which the data is partitioned
+#the GridTopology of the grid
+plot_grid_counts <- function(df,ncells,grd_top,title,breaks) {
+  a <- aggregate(ones~cell,data=df,sum)
+  histogram <- rep(0,ncells)
+  for (row in 1:nrow(a)) {
+    indx = a[row,1]
+    count = a[row,2]
+    histogram[indx] <- count
+  }
+  
+  h.grid <- SpatialGridDataFrame(grd_top, data = as.data.frame(histogram))
+  ker.palette <- colorRampPalette(c("white", "orange","red","darkred","brown"), space = "rgb")
+  if (missing(breaks)) {
+    spplot(h.grid,col.regions=ker.palette,main=title)
+  } else {
+    spplot(h.grid,col.regions=ker.palette,main=title,at=breaks)
+  }
+  
+}
+
+
+setClass("pai",representation(indx="numeric",cum="numeric",area="numeric"))
+setMethod("length", "pai", function(x) length(x@indx))
+setMethod("plot","pai", function(x,main="PAI",xlab="proportion of area",ylab="proportion of events") {plot(x@indx,x@cum,xlab=xlab,ylab=ylab,type="l",main=main)})
+
+pai <- function(df, pred, actual) {
+  df <- df[order(-df[,pred]),]
+  df$cum <- cumsum(df[,actual])
+  total = df$cum[nrow(df)]
+  df$cum <- df$cum/total
+  w = 1/nrow(df)
+  df$indx <- w*(1:nrow(df))
+  # calculate the area under the curve - Rieman sum
+  area = w*sum(df$cum[2:nrow(df)])
+  
+  result = new("pai",indx=df$indx,cum=df$cum,area=area)
+  return(result)
+}
+
+histogram_cells <- function(df,ncells) {
+  a <- aggregate(ones~cell,data=df,sum)
+  histogram <- rep(0,ncells)
+  for (row in 1:nrow(a)) {
+    indx = a[row,1]
+    count = a[row,2]
+    histogram[indx] <- count
+  }
+  return (histogram)
+}
+
+data = read.table("/home/finn/phd/data/geocoded_clean.txt",sep="\t",header=TRUE)
+data$ones <- rep(1,nrow(data))
+
+# Add Grids of various sizes to the data
+g_all_200 <- add_grid(data,200)
+d <- g_all_200[[1]]
+d$cell200 <- d$cell
+
+g_all_1000 <- add_grid(d,1000)
+d <- g_all_1000[[1]]
+d$cell1000 <- d$cell
+
+g_all_5000 <- add_grid(d,5000)
+d <- g_all_5000[[1]]
+d$cell5000 <- d$cell
+
+d$week = d$day %/% 7
+
+d_all <- d
+rm(data)
+
+d <- d[d$year < 2005,]
+#d <- d[d$crime_trunk=='burglary' & d$prem=='RESIDENCE',]
+d <- d[!is.na(d$lat),]
+
+
+cells200 <- aggregate(ones~cell200+cell1000+cell5000,data = d_all,sum)
+a200 <- cells200[,c('cell200','cell1000','cell5000')]
+names(a200) <- c('area','area1000','area5000')
+#output200 <- d[,c('lat','lon','day','cell200','cell1000','cell5000','crime_trunk','prem','ones')]
+#names(output200) <- c('lat','lon','period','area','area1000','area5000','crime','prem','ones')
+#write.table(output200,"/home/finn/phd/data/20140226/events200_all.txt",sep="|",row.names=FALSE,col.names=TRUE,quote=FALSE)
+#write.table(a200,"/home/finn/phd/data/20140226/cells200.txt",sep="|",row.names=FALSE,col.names=TRUE,quote=FALSE)
+
+
+a1000 <- unique(a200[,c('area1000','area5000')])
+a1000$areaall <- rep(1,nrow(a1000))
+names(a1000) <- c('area','area5000','areaall')
+output1000 <- d[,c('lat','lon','week','cell1000', 'cell5000','ones','crime_trunk','prem','ones')]
+names(output1000) <- c('lat','lon','period','area','area5000','areaall','crime','prem','ones')
+write.table(output1000,"/home/finn/phd/data/20140409/events1000_all.txt",sep="|",row.names=FALSE,col.names=TRUE,quote=FALSE)
+write.table(a1000,"/home/finn/phd/data/20140409/cells1000.txt",sep="|",row.names=FALSE,col.names=TRUE,quote=FALSE)
+
+#n_res_burgs1000 = nrow(output1000[output1000$crime=='burglary' & output1000$prem=='RESIDENCE'&output1000$period > 364,])
+#n_res_burgs200 = nrow(output200[output200$crime=='burglary' & output200$prem=='RESIDENCE'&output200$period > 364,])
+
+
+
+
+
+
+
+
+
+

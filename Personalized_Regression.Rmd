@@ -1,0 +1,96 @@
+Personalized Linear Regression
+========================================================
+
+
+```{r}
+# simulate some data
+
+task_instances = c(10,10)
+ntasks = length(task_instances)
+total_instances = sum(task_instances)
+
+sd = 0.1
+# for each task we draw an intercept and slope
+#weights = data.frame(w0 = rep(NA,ntasks), w1 = rep(NA,ntasks))
+weights = matrix(rep(NA,2*ntasks),nrow = ntasks,ncol=2)
+for (t in 1:ntasks) {
+  w = runif(2)
+  weights[t,] = w
+}
+
+
+
+# for each instance for each task, generate a target value. 
+d <- data.frame(x = rep(NA,total_instances), y = rep(NA,total_instances),c = rep(NA,total_instances))
+# 1 for x, 1 for y, c for categories, c for categories * x
+m = matrix(data=NA,ncol=2+2*ntasks,nrow=total_instances)
+
+# for each task
+row = 1
+for (t in 1:ntasks){
+  for (i in 1: task_instances[t]) {
+    x = c(1,runif(1))
+    y = ((weights[t,] %*% x)[1,1])+rnorm(n=1,mean=0,sd=0.1)
+    d[row,] = c(x[2],y,t)
+    
+    cfeat = rep(0,ntasks)
+    cfeat[t]=1
+    cfeatx <- cfeat*x[2]
+    m[row,] = c(x[2],y,cfeat,cfeatx)
+    row = row + 1
+  }
+}
+
+plot(d$x,d$y,col=d$c)
+d2 <- as.data.frame(m)
+```
+
+
+```{r}
+# what if I manually create the extra features?
+
+
+```
+
+```{r}
+d$c <- as.factor(d$c)
+# single model
+lm1 = lm(y~x,data=d)
+d$p1 = lm1$fitted.values
+
+# completely independent model
+lm2 = lm(y~x*c,data=d)
+d$p2 = lm2$fitted.values
+
+
+# single slope, separate intercept
+lm3 = lm(y~x+c,data=d)
+d$p3 = lm3$fitted.values
+
+
+# fully coupled
+lm4 = lm(y~x + x*c, data = d)
+d$p4 = lm4$fitted.values
+
+lm5 = lm(V2~.,data=d2)
+d$p5 = lm5$fitted.values
+
+```
+
+```{r}
+
+
+
+par(mfrow=c(2,1))
+for (t in 1:ntasks) {
+  s <- d[d$c==t,]
+  plot(s$x,s$y, xlab='x',ylab='y',xlim=c(0,1),ylim=c(0,1.2))
+  lines(s$x,s$p1,col='black')
+#  lines(s$x,s$p2,col='blue')
+  lines(s$x,s$p3,col='green')
+  lines(s$x,s$p5,col='red')
+}
+
+```
+
+

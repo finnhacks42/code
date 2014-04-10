@@ -1,0 +1,13 @@
+learning from data
+========================================================
+
+```{r chapter1}
+# prob of a red marble is .9 whats the prob. that in 10 draws we get <=1 red marble
+p1 = choose(10,1)*.9^1*(1-.9)^(9)
+
+# Hoeffing Ineqaulity P(|v-u| > e) <=2exp(-2e^2N)
+# prob e > .8 = .9-.1
+p2 = 2*exp(-2*.8^2*10)
+
+```
+

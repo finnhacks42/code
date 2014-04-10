@@ -1,0 +1,95 @@
+Learn Bayes
+========================================================
+
+```{r}
+library('LearnBayes')
+data(studentdata)
+s <- studentdata
+s$sleep =  s$WakeUp-s$ToSleep
+
+# we want to make some inference about the proportion of students who sleep more than 8 hours per day.
+
+l_binomial <- function(p,n,k) {
+  return((p^k)*(1-p)^(n - k))
+}
+
+# take as a prior over the proportion p
+
+# so when we set things up as discrete it seem easy right - or will this approach face curse of dimensionality issues?
+x = seq(0.1,.9,by=0.01)
+prior = dbeta(x,10,10)
+plot(x,prior)
+n = nrow(s)
+k = sum(s$sleep > 8, na.rm=TRUE)
+l = l_binomial(x,n,k)
+plot(x,l)
+post = prior*l
+post = post/sum(post)
+plot(x,post)
+```
+
+
+
+```{r}
+library('LearnBayes')
+data(hearttransplants)
+h = hearttransplants
+h$rate1 = h$y/h$e
+hist(h$rate)
+plot(h$e,h$rate)
+pooled_rate = sum(h$y)/sum(h$e)
+
+log_prior_density <- function(lambda,pars) {
+  alpha = pars[1]
+  a = pars[2]
+  b = pars[3]
+  (alpha - 1)*log(prod(lambda))-2*
+}
+
+```
+
+
+Assume I have a small region with an average number of crimes of something like 1/10 years. I want to infer the actual rate per year from the number of events
+```{r}
+r = seq(0,10,by=0.01)
+median_yearly_rate = 1/10.0
+mu = log(median_yearly_rate)
+prior = dlnorm(r,mu,1)
+plot(r,prior)
+
+N = 5
+l = dpois(N,r)
+plot(r,l)
+post = prior*l
+post = post/sum(post)
+plot(r,post)
+```
+
+Now lets assume I have a number of sites 1...k. At each site I have observed a number of events N_k for that year. I want to infer rates
+```{r}
+k = 10
+median_yearly_rate = 1/10.0
+mu = log(median_yearly_rate)
+r = rlnorm(k,mu,1)
+N = rpois(k,r)
+
+x = seq(0,1,by=0.001)
+prior = dlnorm(2*mu,1) # deliberately choose a prior that is not quite right
+l = #product
+
+
+
+
+
+
+
+
+
+```
+
+
+
+
+
+
+

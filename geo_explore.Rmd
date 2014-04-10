@@ -1,0 +1,845 @@
+Geospatial exploration
+========================================================
+```{r}
+
+
+plot.heat <- function(counties.map,z,title=NULL,breaks=NULL,reverse=FALSE,cex.legend=1,bw=.2,col.vec=NULL,plot.legend=TRUE) {
+  ##Break down the value variable
+  if (is.null(breaks)) {
+    nbins = 10
+    minz = min(counties.map@data[,z],na.rm=TRUE)
+    maxz = max(counties.map@data[,z],na.rm=TRUE)
+    breaks= seq(minz,maxz,length.out=nbins)
+      #seq(
+      #    floor(min(counties.map@data[,z],na.rm=TRUE)*10)/10
+      #    ,
+      #    ceiling(max(counties.map@data[,z],na.rm=TRUE)*10)/10
+      #    ,.1)
+  }
+  counties.map@data$zCat <- cut(counties.map@data[,z],breaks,include.lowest=TRUE)
+  cutpoints <- levels(counties.map@data$zCat)
+  if (is.null(col.vec)) col.vec <- heat.colors(length(levels(counties.map@data$zCat)))
+  if (reverse) {
+    cutpointsColors <- rev(col.vec)
+  } else {
+    cutpointsColors <- col.vec
+  }
+  levels(counties.map@data$zCat) <- cutpointsColors
+  plot(counties.map,border=gray(.8), lwd=bw,axes = FALSE, las = 1,col=as.character(counties.map@data$zCat))
+ 
+  ##with(counties.map.c,text(x,y,name,cex=0.75))
+  if (plot.legend) legend("topright", cutpoints, fill = cutpointsColors,bty="n",title=title,cex=cex.legend)
+  ##title("Cartogram")
+}
+```
+
+
+
+
+```{r shapefile-stuff}
+require(maptools)
+shape <- readShapeSpatial("phd/data/dcad/TaxParcelNeighborhood/TaxParcelNeighborhood/TaxParcelNeighborhood.shp")
+plot(shape)
+View(head(shape))
+
+parcels <- readShapeSpatial("/home/finn/phd/data/reference/PARCEL2009/PARCEL2009/PARCEL2009.shp")
+
+Viewshape2 <- readShapeSpatial("/home/finn/phd/data/shapefiles/Citylimit/CityLimit.shp")
+plot(shape2)
+
+library(UScensus2000)
+library(UScensus2000blk)
+
+data(texas.cdp)
+n = texas.cdp$name[order(texas.cdp$name)]
+
+dallas<-city(name="dallas",state="tx")
+plot(dallas)
+
+
+dallas.tract <- poly.clipper(name = "Dallas", state = "tx", level = "tract")
+plot(dallas.tract)
+
+dallas.blkgrp <- poly.clipper(name = "Dallas", state = "tx", level = "blkgrp")
+plot(dallas.blkgrp)
+
+dallas.blk <- poly.clipper(name = "Dallas", state = "tx", level = "blk") #TODO install at this level ...
+install.blk("linux") #install block level data (> 2 GB, so be patient.)
+
+# try to merge my point data with the polygon data.
+
+s <- data[sample(1:nrow(data),size=1000,replace=F),]
+events <- SpatialPointsDataFrame(data[,c('lon','lat')], data[,c('crime','lon','lat')])
+
+proj4string(events)
+projection <- proj4string(dallas.tract)
+proj4string(events) <- projection
+
+t <- dallas.tract[,c('tract')]
+
+z = over(events, t)
+data$tract <- z$tract
+data$ones <- rep(1,nrow(data))
+by.tract <- aggregate(ones~tract,data=data,sum)
+
+# merge the by tract counts with dallas tracts. We need to replace the data frame component of the tract object with a merged one. But the order must be the same as in the original.
+original <- t@data
+original$id <- 1:nrow(t) # create a new field to keep track of the order
+combined <- merge(original,by.tract, all.x=T,by='tract')
+combined <- combined[with(combined,order(id)),]
+natracts <- which(is.na(combined$ones))
+combined$ones[natracts] <- 0
+names(combined) <-c('tract','id','crimes')
+t@data$crimes <- combined$crimes
+t@data$id <- NULL
+
+# now I can produce a plot of the number of crimes per tract.
+
+z2 = over(events,dallas.blkgrp)
+data$blkgrp <- z2$blkgrp
+data$tract <- z2$tract
+dallas.blkgrp@data$bgid <- paste0(dallas.blkgrp@data$tract,"-",dallas.blkgrp@data$blkgrp)
+by.blkgrp = aggregate(ones~bgid,data=data,sum)
+dallas.blkgrp@data$id <- 1:nrow(dallas.blkgrp@data)
+names(by.blkgrp) <- c('bgid','crimes')
+combined <- merge(dallas.blkgrp@data,by.blkgrp,all.x=T,by='bgid')
+combined <- combined[with(combined,order(id)),]
+naregions <- which(is.na(combined$crimes))
+combined$crimes[naregions] <- 0
+dallas.blkgrp@data$crimes <- combined$crimes
+dallas.blkgrp@data$id <- NULL
+
+
+plot.heat(dallas.blkgrp,z="crimes",reverse=T) # straight out crimes/block-group
+
+dallas.blkgrp$crimeperpop <- dallas.blkgrp$crimes/dallas.blkgrp$pop2000
+
+breaks = seq(0,2.4,by=0.2)
+breaks = c(breaks,max(dallas.blkgrp$crimeperpop,na.rm=T))
+plot.heat(dallas.blkgrp,z="crimeperpop",breaks=breaks,reverse=T) # crime per person (in 2000)
+
+
+
+
+s <- data[data$tract==30,]
+s2 <- s[!is.na(s$lat),]
+tract30 <-  SpatialPointsDataFrame(s[,c('lon','lat')], s)
+
+
+
+
+
+
+```
+
+
+
+
+
+```{r define-functions}
+
+library(splancs)
+library(maptools)
+library(rgdal)
+library('aspace') # spatial point patterns
+#outputs a numeric vector of length grid width * grid height
+hist_on_grid <- function(df,grd) {
+  df2 <- data.frame(df)
+  dims = attr(grd,'cells.dim')
+  offsets = attr(grd,'cellcentre.offset')
+  sizes = attr(grd,'cellsize')
+  width = dims[1]
+  height = dims[2]
+  result = rep(0,width*height)
+  
+  df2$cellx = ceiling((df[,1]-offsets[1])/sizes[1]) 
+  df2$celly = height - ceiling((df[,2]-offsets[2])/sizes[2])
+  df2$ones <- rep(1,nrow(df2)) 
+  counts <- aggregate(ones~cellx+celly,data=df2,sum)
+  counts[counts$celly==0,'celly'] <- 1
+  counts[counts$cellx==0,'cellx'] <- 1
+  counts$index <- (counts$celly-1)*width+counts$cellx
+  for (row in 1:nrow(counts)) {
+    result[counts[row,4]] <- counts[row,3]
+  }
+  
+  return(result)
+}
+
+sp_distance <- function(lat1,lon1,lat2,lon2) {
+  dlat <- as_radians(lat1 - lat2)
+  dlon <- as_radians(lon1- lon2)
+  lat1 <- as_radians(lat1)
+  lat2 <- as_radians(lat2)
+  a <- (sin(dlat/2))^2+((sin(dlon/2))^2)*cos(lat1)*cos(lat2)
+  c <- 2*atan2(sqrt(a),sqrt(1-a))
+  d <- 6371000*c
+  return(d)
+}
+
+mse_cost <- function(kernal,hist,filter) {
+  mean((kernal - hist)^2,na.rm=TRUE)
+}
+
+# predicts the top 5% of the squares contained crime and then calculates the % of crimes that were in predicted squares
+hit_cost <- function(kernal,hist,filter) {
+  df <- as.data.frame(kernal)
+  df$row <- 1:nrow(df)
+  df <- df[order(-kernal),]
+  nsquares <- AREA_PER*(nrow(df) - length(filter))
+  pred_squares <- df$row[1:nsquares]
+  pred_crimes <- sum(hist[pred_squares],na.rm=TRUE)
+  total_crimes <- sum(hist,na.rm=TRUE)
+  hit_rate <- pred_crimes/total_crimes
+  return(1-hit_rate)
+}
+
+norm <- function(array) {
+  s <- sum(array,na.rm=TRUE)
+  return(array/s)
+}
+
+plot_kern <- function(kern) {
+  kern.grid <- SpatialGridDataFrame(grd, data = data.frame(kern))
+  proj4string(kern.grid) <- projection
+  spplot(kern.grid,col.regions=ker.palette)
+}
+
+# function takes a list of bandwiths and a cost function, GridTopology object grd, end_year = last year to train on. Must be at least one more year in the data set for testing.
+kde <- function(data, bw_list, cost_function, grd,start_year,end_year) {
+  num_years = end_year - start_year
+  # lets do some cross validation. To start with we will use each year to try to predict the next 
+  kernels <- data.frame(x = 1:(grd.dims[1]*grd.dims[2]))
+  cost_matrix <- matrix(nrow=(length(bw_list))*(num_years+1),ncol=3)
+  base <- hist_on_grid(data[data$year==start_year,],grd)
+  non_zero <- which(base > 0)
+  filter <- c(1:min(non_zero),max(non_zero):length(base)) #TODO come up with a filter that better captures the convex hull of the points
+  
+  indx <- 1 
+  for (y in start_year:end_year) {
+    train <- data[data$year == y,]
+    test <- data[data$year == (y+1),]
+    hist <- hist_on_grid(test,grd)
+    hist[filter] <- 0
+    hist <- norm(hist)
+    for (bw in bw_list) {   
+      if (bw == 0) {
+        kern <- hist_on_grid(train,grd)
+      } else {
+        train_sp <- SpatialPointsDataFrame(train, train)
+        proj4string(train_sp) <- projection
+        kern <- spkernel2d(train_sp, poly=bounds, h0=bw, grd=grd)
+        rm(train_sp)
+      }
+      kern[filter] <- 0
+      
+      kern <- norm(kern)
+      kern_name <- paste0('k',(bw*1000),'_',y)
+      kernels$tmp <- kern
+      names(kernels)[indx+1] <- kern_name
+      
+      cost <- cost_function(kern,hist,filter)
+      row <- c(cost,bw,y)
+      cost_matrix[indx,] <-row
+      indx <- indx + 1
+      print(row)
+      }
+    }
+  
+  cost_df <- as.data.frame(cost_matrix)
+ 
+  title = paste0("kernal smoothing cost curve, predicted area ",AREA_PER*100,'%')
+  plot(cost_df$V2,cost_df$V1,xlab="smoothing",ylab="cost",main=title)
+  return(list(kernels,cost_df))
+}
+
+```
+
+
+
+
+
+
+
+
+
+
+```{r}
+targets = c("100"="RESIDENCE GROCERY PLACE","101"="AUTO PARTS","102"="STORE ART ANTIQUE","103"="BOOKSTORE STORE","104"="BUILDING SU","105"="CLOTHING STORE","106"="STORE DEPARTMENT","107"="STORE VARIETY","108"="CONVENIENCE STORE","109"="STORE GROCERY","110"="GUN STORE","111"="PHARMACY STORE","112"="STORE DRUG","113"="FURNITURE STORE","114"="STORE FURNITURE OFFICE","115"="HARDWARE STORE","116"="STORE GIFT","117"="JEWELRY STORE","118"="LEATHER STORE","119"="LIQUOR STORE","120"="SPORTING STORE GO","121"="STORE MUSIC","122"="PAWN SHOP","123"="PET STORE","124"="STATION GAS","125"="STORE SHOE","126"="TOBACCO STORE CIGARETTE","127"="WIG STORE","128"="BAR CLUB","129"="BOAT SUPPLY MARINA CLUB","130"="CAR DEALERSHIP LOT","131"="CAR LOT USED","132"="MOTORCYCLE HOTEL SHOP","133"="TRAILER MOBILE HOME","134"="CHECK CASHING","135"="FLORIST SHOP PLANT NURSERY","136"="APARTMENT OFFICE","137"="HOTEL ROOM","138"="AUCTION HOU","139"="CHURCH CHURCHINSI","140"="PHOTO SHOP CAMERA","141"="STORE DISCOUNT","142"="MARKET HALL","143"="CARPET COMP FLOOR","144"="SHOPPING CE","145"="MALL SHOPPING","146"="MALL SHOPPING CENTER","200"="BUSINESS BUISNESS","201"="BEAUTY SHOP","202"="BAKERY SHOP","203"="CLEANERS DRY","204"="STORE COMPUTER PHONE ST CELL COMMUNICATI","205"="CONSTRUCTION SITE","206"="CAB COMPANY PUBLIC STREET","207"="DANCE STUDI","208"="ELECTRONIC STORE","209"="AUTO REPAIR","210"="FOOD PROCES PROCE MEAT","211"="STORE FUR ANIMAL","212"="KEY LOCKSMITH","213"="LAUNDRY ROOM LAUNDROMAT","214"="MOWER BICYCLE SALE SHOP STORE","215"="PRINTING PRINT COMPA","216"="SHOE REPAIR STORAGE SHINE","217"="WELDING SHOP","218"="YARD WRECKER WRECKING SALVAGE YA","219"="TRUCK STOP COMPA","220"="STORAGE CO","221"="CAR WASH","222"="CARE DAY","223"="BARN HORSE","224"="TRAILER PARK","225"="CATERING CO","226"="BANK","227"="SAVINGSLO SAVINGSLOA","228"="RADIO STATION STATI","229"="SCHOOL PRIVATE","230"="CEMENT COMP","231"="FURNITURE SHOP","232"="GEN MERCHA","233"="SCHOOLS SCHOOL TRADE","234"="TIRE SHOP","235"="STORAGE UNIT MINIWAREHOU","236"="MARINA BOAT LAKE","237"="PAINT STORE","238"="ATM MACHINE BANK","239"="SCHOOLS","300"="RESTAURANT BUSINESS BOSTON","301"="RESTAURANT FOOD","302"="RESTAURANT FOOD FAST CAFEDRIVE","303"="CAFETERIA","304"="ICE CREAM","305"="PIZZA RESTA RESTAURANT","400"="BUSINESS MI","401"="INSURANCE OFFICE","402"="REAL ESTATE","403"="RENTAL CAR STORE AGENCY")
+targets2 = c("404"="TICKET SALE","405"="BUS STATION AIRPORT","406"="SECURITY CO","500"="RESIDENCE APARTMENT","501"="RESIDENCE HOUSE","502"="DUPLEX","503"="APARTMENT APT","504"="MOBILE HOME TRAILER","505"="HOUSE SHELTER BOARDING HOME HALFWAY","506"="GARAGE RESIDENCE","507"="YMCA SHELTER","508"="YWCA CENTER RECREATION RESIDENCE","509"="SALVATION ARMY","510"="RESIDENCE DRIVEWAY YARD","511"="CONDO CONDOMINIUM","600"="CENTER RECREATION","601"="BOWLING ALLEY","602"="APARTMENT COMPLEX","603"="FAIR STATE","604"="GOLF COURSE","605"="THEATER MOVIE","606"="MOVIE THEATER","607"="HALL POOL","608"="CONCESSION","609"="POOL SWIMMING","610"="PARK PUBLIC","611"="FOOTBALL STADIUM","612"="ARENA SPORTS REUNION","613"="RINK SKATING","700"="BUSINESS OFFICE BUILDING","701"="HOSPITAL ROOM","702"="OFFICE MEDICAL CLINIC DOCTOR","703"="PHARMACY SU","704"="CLINIC ANIMAL VETERINARIA","705"="EYE GLASS OPTICAL STORE","706"="LAW OFFICE","707"="NURSING HOME","708"="COUNSELOR OFFICE","709"="BUSINESS EMPLOYMENT OFFICE BUILDING TEMP AGENCY BUSN","710"="OFFICE BUSINESS","711"="FITNESS HEALTH CLUB CENTER","801"="POLICE POUND AUTO STATION","802"="POLICE CAR SQUAD STATION POUND MUNICIPAL AUTO CITY","803"="CITY LIBRARY MUNICIPAL HALL PUBLIC STATION OFFICE CENTER FIRE SHELTER DALLAS POUND POLICE AUTO","804"="COUNTY GOVT GOV OFFICE JAIL LIBRARY COURT","805"="JAIL COUNTY POLICE LEW STERRETT STATION POUND","806"="STATE GOVT OFFICE TEXAS","807"="STATE POLIC JAIL TYC POLICE OFFICE FACILITY POLI","808"="FEDERAL GOV OFFICE POST GO BLDG","809"="DEA BUILDING FEDERAL OFFICE AGENCY CTR GOVERNMENT HOUSING MEXICAN","810"="POST OFFICE","811"="CENTER RECREATION COMMUNITY","812"="SCHOOL PUBLIC SCHOOLS","813"="CONVENTION CENTER","900"="APT REPAIR CO PKLT VACANT","901"="PUBLIC STREET","902"="BUSINESS DR APT","903"="CAB DRIVER APARTMENT PUBLIC","904"="BUS DART","905"="DELIVERY SERVICE","906"="TRAIN STORAGE RAILROAD BOXCAR DART","907"="VACANT HOUSE","908"="VACANT LOT","909"="WAREHOUSE FACTORY","910"="PUBLIC STREET","911"="AIRPLANE PUBLIC","912"="CEMETERY CEMETARY FUNERAL","913"="MISC","914"="HOME MOTOR","915"="PHONE PAY","916"="STORAGE SHED","917"="WOODED AREA","918"="CREEK RIVER LAKE BED","919"="RAILROAD TRACKS PR RAIL","920"="APARTMENT APT LOT","921"="PARKING LOT CLUB","922"="CHURCH PARKING","923"="PARKING LOT PAY","924"="PARKING CONVENTION","925"="PARKING STORE LOT","926"="MARKET CENT HALL","927"="PARKING LOT EMPLOYEE","928"="PARKING WAREHOUSE","929"="FAIR PARK","930"="PARKING LOT FOOTBALL","931"="HOSPITAL PARKING LOT","932"="HOTEL PARKING LOT","933"="RESTAURANT LOT PK","934"="PARKING LOT SHOPPING MALL","935"="PARKING ARENA LOT REUNION","936"="GROCERY PARKING STORE","937"="PARKING LOT BUSINESS PK","938"="GARAGE PARKING")
+targets <- c(targets,targets2)
+
+
+
+# for each property attack code, calculate the average number of events that occure at any one fixed address of this type
+a <- aggregate(ones~property_attack_code + key,data=geocoded,sum)
+a$events <- a$ones
+a$ones <- rep(1,nrow(a))
+a$property_attack_code <- as.character(a$property_attack_code)
+a$target <- revalue(a$property_attack_code,targets)
+b <- aggregate(events~target,data=a,mean)
+c <- aggregate(ones~target,data=a,sum) # number of distinct addresses in each attack_code
+d <- merge(b,c,by='target')
+d <- d[with(d,order(-events)),]
+```
+crime_by_target <- crime_by_target[with(crime_by_target, order(-Freq)),] # sort to order by frequency
+
+
+```{r}
+write.table(sector11[,c("lon","lat")],"/home/finn/phd/data/sector11.csv",sep="\t",row.names=FALSE,col.names=FALSE)
+
+crime_locs <- sector11[,c('lon','lat')]
+names(crime_locs) <- c("LONG","LAT")
+
+
+# creates a kml overlay of the crime points
+#subsample <- sector11[sample(nrow(sector11),1000),c('lon','lat')]
+#subsample <- sector11[,c('lon','lat')]
+#subsample <- geocoded[!is.na(geocoded$lat),c('lon','lat','year')]
+#subsample <- burglary[,c('lon','lat','year')]
+subsample <- yr2001[,c('lon','lat','year')]
+
+
+
+```
+
+```{r burglary}
+burg_by_address <- aggregate(ones~key,data = burglary,sum)
+b <- burg_by_address[order(-burg_by_address$ones),]
+top <- burglary[burglary$key=='07575CHAUCERPL4360',]
+t <- b[b$ones<10,]
+high <- b[b$ones > 5,]
+low <- b[b$ones <=5,]
+hper <- nrow(high)/(nrow(high)+nrow(low))
+high_e <- merge(high,burglary,by='key')
+nrow(high_e)/nrow(burglary)
+# 5% of addresses that were burgled were vicimized more than 5 times. These addresses accounted for 35% of burglary events.
+low_e <- merge(low,burglary,by='key')
+subsample <- low_e[,c('lon','lat','year')]
+rm(t)
+rm(b)
+rm(top)
+rm(high)
+rm(low)
+```
+
+
+```{r kde preparation}
+projection <- CRS("+proj=longlat +datum=WGS84")
+crime <- SpatialPointsDataFrame(subsample[,c('lon','lat')], subsample)
+# create a polygon representing the bounds of the data
+x1 <- min(subsample$lon)
+x2 <- max(subsample$lon)
+y1 <- min(subsample$lat)
+y2 <- max(subsample$lat)
+bounds <- as.points(c(x1,x2,x2,x1),c(y1,y1,y2,y2))
+plot(bounds,type="l")
+
+ref_lat = mean(y1,y2)
+lon_dist = sp_distance(ref_lat,0,ref_lat,0.1) # the distance in km of a 10th of a degree of longitude (depends on latitude)
+lat_dist = sp_distance(0,0,0.1,0) # the distance in km of a 10th of a degree of latitude. This is constant and idepended of the latitude and longitude
+aspect = lon_dist/lat_dist
+width = sp_distance(ref_lat,x1,ref_lat,x2)
+height = sp_distance(x1,0,x2,0)
+
+# calculate a grid and do the smoothing
+grd <- Sobj_SpatialGrid(crime,maxDim=300,asp = aspect)$SG 
+grd <- GridTopology(summary(grd)$grid[,1],cellsize=summary(grd)$grid[,2],cells.dim=summary(grd)$grid[,3])
+grd.dims = attr(grd,'cells.dim')
+ncells <- grd.dims[1]*grd.dims[2]
+
+ker.palette <- colorRampPalette(c("white", "orange","red","darkred","brown"), space = "rgb")
+```
+
+
+```{r monthly-hotspots}
+# we can ask the question what is the optimal smoothing to predict one month from the next.
+library(lubridate)
+yr2001 <- geocoded[geocoded$year == 2001,]
+yr2001$week <- week(yr2001$date)
+
+monthly <- data.frame(x=1:ncells)
+for (week in 1:12) {
+  m <- yr2001[yr2001$week==week,c('lon','lat')]
+  sp <- SpatialPointsDataFrame(m, m)
+  proj4string(sp) <- projection
+  kern <- spkernel2d(sp, poly=bounds, h0=0.005, grd=grd)
+  kern_name <- paste0("week",week)
+  monthly$tmp <- kern
+  names(monthly)[week+1] <- kern_name
+}
+monthly$x <- NULL
+
+
+kern.grid <- SpatialGridDataFrame(grd, data = monthly)
+proj4string(kern.grid) <- projection
+spplot(kern.grid,col.regions=ker.palette)
+
+
+```
+
+```{r}
+
+#bw <- c(seq(0,.001,by=.0001),seq(0.002,0.005,by=0.001))
+bw <- c(0.003)
+
+area_pers <- c(0.001,0.01,0.025,0.05,0.1,0.2,0.3,0.4,0.5,0.6,0.7,0.8,0.9)
+hd <- as.data.frame(area_pers)
+hd$cost <- rep(NA,nrow(hd))
+hd$smooth<-rep(NA,nrow(hd))
+
+for (i in 1:length(area_pers)) {
+  AREA_PER =  area_pers[i]
+  result <- kde(data=subsample,bw_list=bw,cost_function=hit_cost,grd=grd,start_year=2000,end_year=2003)
+  kernels <- result[[1]]
+  cost <- result[[2]]
+  names(cost) <- c('cost','smoothing','year')
+  mean_cost <- aggregate(cost~smoothing,data=cost,mean)
+  min_i <- which.min(mean_cost$cost)
+  min_cost <- mean_cost$cost[min_i]
+  optimal_smooth <- mean_cost$smoothing[min_i]
+  hd$cost[i] <- min_cost
+  hd$smooth[i] <- optimal_smooth
+}
+
+require("reshape")
+require("ggplot2")
+names(p) <- c('area','optimal','no smoothing','50m smoothing','300m smoothing')
+p_long <- melt(p, id="area")  # convert to long format
+p_long$area <- 100*p_long$area
+p_long$value <- 100*p_long$value
+ggplot(data=p_long, aes(x=area, y=value, colour=variable)) + geom_line(size=2)+xlab("percentage of area predicted")+ylab("percentage of crimes predicted")+ggtitle("PAI curve from KDE at different bandwiths")
+
+
+
+```
+
+
+
+
+
+```{r kernal density estimation}
+
+
+
+#bw_list = seq(0.001,0.01,by=0.001)
+bw_list = c(0.001,0.003,0.006)
+#bw_list = c(0.003,0.005,0.01)
+num_years = max(subsample$year) - min(subsample$year) - 1-5
+# lets do some cross validation. To start with we will use each year to try to predict the next 
+kernels <- data.frame(x = 1:(grd.dims[1]*grd.dims[2]))
+cost_matrix <- matrix(nrow=(length(bw_list)+1)*(num_years+1),ncol=3)
+indx <- 1
+# test how well the histogram predicts itself
+for (y in min(subsample$year):(max(subsample$year) - 1-5)) {
+    train <- subsample[subsample$year == y,]
+    test <- subsample[subsample$year == (y+1),]
+    hist <- hist_on_grid(test,grd)
+    hist <- norm(hist)
+    hist2 <- hist_on_grid(train,grd)
+    hist2 <- norm(hist2)
+    kernels$tmp <- hist2
+    kern_name <- paste0('hist_',y)
+    names(kernels)[indx +1] <- kern_name
+    cost <- mse_cost(hist,hist2)
+    cost_matrix[indx,] <- c(cost,0,y)
+    print(cost_matrix[indx,])
+    indx <- indx + 1
+}
+
+for (bw in bw_list) {
+  for (y in min(subsample$year):(max(subsample$year) - 1-5)) {
+    print(y)
+    train <- subsample[subsample$year == y,]
+    test <- subsample[subsample$year == (y+1),]
+    train <- SpatialPointsDataFrame(train, train)
+    proj4string(train) <- projection
+    kern <- spkernel2d(train, poly=bounds, h0=bw, grd=grd)
+    kern <- norm(kern)
+    kern_name <- paste0('k',bw,'_',y)
+    kernels$tmp <- kern
+    names(kernels)[indx+1] <- kern_name
+    hist <- hist_on_grid(test,grd)
+    hist <- norm(hist)
+    cost <- mse_cost(kern,hist)
+    row <- c(cost,bw,y)
+    cost_matrix[indx,] <-row
+    indx <- indx + 1
+    print(row)
+    }
+}
+
+
+cost_df <- as.data.frame(cost_matrix)
+plot(cost_df$V2,cost_df$V1)
+
+```
+
+```{r}
+layout(mat, widths = rep.int(1, ncol(mat)), heights = rep.int(1, nrow(mat)), respect = FALSE)
+kern.grid <- SpatialGridDataFrame(grd, data = kernels[,2:ncol(kernels)])
+proj4string(kern.grid) <- projection
+spplot(kern.grid,col.regions=ker.palette)
+```
+
+split = nrow(subsample)/2
+t2 <- subsample[1:split,]
+t1 <- subsample[split:nrow(subsample),]
+train <- SpatialPointsDataFrame(t1, t1)
+proj4string(train) <- projection
+kern <- spkernel2d(train, poly=bounds, h0=0.001, grd=grd)
+hist <- hist_on_grid(t2,grd)
+
+hist.grid <- SpatialGridDataFrame(grd, data = data.frame(hist))
+proj4string(hist.grid) <- projection
+spplot(hist.grid,col.regions=ker.palette)
+
+kern.grid <- SpatialGridDataFrame(grd, data = data.frame(kern))
+proj4string(kern.grid) <- projection
+spplot(kern.grid,col.regions=ker.palette)
+
+
+```
+
+
+
+```{r}
+
+# here lets map my points onto a raster grid the same as the above.
+
+kbw001 <- spkernel2d(crime, poly=bounds, h0=0.001, grd=grd)
+sum(kbw001,na.rm=TRUE)
+kbw001.grid <- SpatialGridDataFrame(grd, data = data.frame(kbw001))
+proj4string(kbw001.grid) <- projection
+ker.palette <- colorRampPalette(c("white", "orange","red","darkred","brown"), space = "rgb")
+spplot(kbw001.grid,col.regions=ker.palette)
+
+h <- hist_on_grid(subsample,grd)
+hist.grid <- SpatialGridDataFrame(grd, data = data.frame(h))
+proj4string(hist.grid) <- projection
+spplot(hist.grid,col.regions=ker.palette)
+
+# First, reproject the grid to longlat:
+kbw001.ll <- spTransform(kbw001.grid,projection)
+spplot(kbw001.ll)
+
+
+# The cell size you need to determine yourself!!
+
+width = (x2 - x1)
+#height =(kbw2000.grd at bbox["coords.x2","max"]-kbw2000.grd at bbox["coords.x2","min"])/2000
+#geogrd.cell = (kbw2000.ll at bbox["s1","max"]-kbw2000.ll at bbox["s1","min"])/width
+
+# Define a new grid:
+geogrd = spsample(kbw2000.ll, type="regular",cellsize=c(geogrd.cell,geogrd.cell))
+gridded(geogrd) = TRUE
+
+gridparameters(geogrd)
+# cellcentre.offset   cellsize cells.dim
+# x1          15.90165 0.02636685        30
+# x2          47.95541 0.02636685        16
+
+# This is an empty grid without any topology (only grid nodes are defined) and coordinate 
+# system definition. To create topology, we coerce a dummy variable (1s),then
+# specify that the layer has a full topology:
+
+nogrids = geogrd at grid@cells.dim["x1"]*geogrd at grid@cells.dim["x2"]
+geogrd = SpatialGridDataFrame(geogrd at grid, data=data.frame(rep(1,nogrids)), proj4string=kbw2000.ll at proj4string)
+
+# and estimate the values of the reprojected map at new grid locations using the bilinear resampling:
+# this can be time-consuming for large grids!!!
+
+library(gstat)
+kbw2000.llgrd = krige(kbw2000~1, kbw2000.ll, geogrd, nmax=4)
+
+# Optional, convert the original shape to latlong coordinates:
+
+data.ll <- spTransform(data.shp, CRS("+proj=longlat +datum=WGS84"))
+spplot(kbw2000.llgrd["var1.pred"], col.regions=terrain.colors(16),
+scales=list(draw=TRUE),
+sp.layout=list("sp.points",pch="+",cex=1.2,col="black",data.ll))
+
+# The final grid map can be exported to KML format using the maptools package and kmlOverlay method:
+
+kbw2000.kml = GE_SpatialGrid(kbw2000.llgrd)
+
+tf <- tempfile()
+png(file=paste(tf, ".png", sep=""), width=kbw2000.kml$width,
+height=kbw2000.kml$height, bg="transparent")
+
+par(mar=c(0,0,0,0), xaxs="i", yaxs="i")
+image(as.image.SpatialGridDataFrame(kbw2000.llgrd[1]), col=bpy.colors(),
+xlim=kbw2000.kml$xlim, ylim=kbw2000.kml$ylim)
+plot(data.ll, pch="+", cex=1.2, add=TRUE, bg="transparent")
+
+kmlOverlay(kbw2000.kml, paste(tf, ".kml", sep=""), paste(tf, ".png", sep=""))
+dev.off()
+
+
+```
+
+
+```{r}
+library(rgdal)
+library(maptools)
+library(splancs)
+
+# Import the points and study area:
+
+data.shp <- readOGR("C:/", layer="events")
+str(data.shp)
+
+poly.shp <- readOGR("C:/", layer="hull")
+str(poly.shp)
+
+poly <-
+getPolygonCoordsSlot(getPolygonsPolygonsSlot(getSpPpolygonsSlot(poly.shp)[[1]])[[1]])
+grd <-
+GridTopology(cellcentre.offset=c(round(poly.shp at bbox["r1","min"],0),
+round(poly.shp at bbox["r2","min"],0)), cellsize=c(2000,2000),
+cells.dim=c(30,25))
+
+# Run the 2D kernel smoother:
+
+kbw2000 <- spkernel2d(data.shp, poly, h0=2000, grd)
+hist(kbw2000)
+
+# Pack and plot a SpatialGridDataFrame:
+
+kbw2000.grd <- SpatialGridDataFrame(grd, data=data.frame(kbw2000))
+proj4string(kbw2000.grd) <- data.shp at proj4string
+spplot(kbw2000.grd, col.regions=terrain.colors(16),
+sp.layout=list("sp.points",pch="+",cex=1.2,col="black",data.shp))
+
+# Export to KML
+# First, reproject the grid to longlat:
+
+kbw2000.ll <- spTransform(kbw2000.grd, CRS("+proj=longlat +datum=WGS84"))
+str(kbw2000.ll)
+
+# The cell size you need to determine yourself!!
+
+width =
+(kbw2000.grd at bbox["coords.x1","max"]-kbw2000.grd at bbox["coords.x1","min"])/2000
+height =
+(kbw2000.grd at bbox["coords.x2","max"]-kbw2000.grd at bbox["coords.x2","min"])/2000
+geogrd.cell = (kbw2000.ll at bbox["s1","max"]-kbw2000.ll at bbox["s1","min"])/width
+
+# Define a new grid:
+
+geogrd = spsample(kbw2000.ll, type="regular",
+cellsize=c(geogrd.cell,geogrd.cell))
+gridded(geogrd) = TRUE
+
+gridparameters(geogrd)
+# cellcentre.offset   cellsize cells.dim
+# x1          15.90165 0.02636685        30
+# x2          47.95541 0.02636685        16
+
+# This is an empty grid without any topology (only grid nodes are defined)
+and coordinate
+# system definition. To create topology, we coerce a dummy variable (1s),
+then
+# specify that the layer has a full topology:
+
+nogrids = geogrd at grid@cells.dim["x1"]*geogrd at grid@cells.dim["x2"]
+geogrd = SpatialGridDataFrame(geogrd at grid, data=data.frame(rep(1,
+nogrids)), proj4string=kbw2000.ll at proj4string)
+
+# and estimate the values of the reprojected map at new grid locations
+using the bilinear resampling:
+# this can be time-consuming for large grids!!!
+
+library(gstat)
+kbw2000.llgrd = krige(kbw2000~1, kbw2000.ll, geogrd, nmax=4)
+
+# Optional, convert the original shape to latlong coordinates:
+
+data.ll <- spTransform(data.shp, CRS("+proj=longlat +datum=WGS84"))
+spplot(kbw2000.llgrd["var1.pred"], col.regions=terrain.colors(16),
+scales=list(draw=TRUE),
+sp.layout=list("sp.points",pch="+",cex=1.2,col="black",data.ll))
+
+# The final grid map can be exported to KML format using the maptools
+package and kmlOverlay method:
+
+kbw2000.kml = GE_SpatialGrid(kbw2000.llgrd)
+
+tf <- tempfile()
+png(file=paste(tf, ".png", sep=""), width=kbw2000.kml$width,
+height=kbw2000.kml$height, bg="transparent")
+
+par(mar=c(0,0,0,0), xaxs="i", yaxs="i")
+image(as.image.SpatialGridDataFrame(kbw2000.llgrd[1]), col=bpy.colors(),
+xlim=kbw2000.kml$xlim, ylim=kbw2000.kml$ylim)
+plot(data.ll, pch="+", cex=1.2, add=TRUE, bg="transparent")
+
+kmlOverlay(kbw2000.kml, paste(tf, ".kml", sep=""), paste(tf, ".png", sep=""))
+dev.off()
+
+
+```
+
+
+
+```{r}
+#plots points as a kml overlay
+tf <- "/home/finn/phd/data/kmloverlay"
+SGcrime <- GE_SpatialGrid(crime)
+png(file=paste(tf, ".png", sep=""), width=SGcrime$width, height=SGcrime$height,  bg="transparent")
+par(mar=c(0,0,0,0), xaxs="i", yaxs="i")
+plot(crime, xlim=SGcrime$xlim, ylim=SGcrime$ylim, setParUsrBB=TRUE)
+dev.off()
+kml <- kmlOverlay(SGcrime, paste(tf, ".kml", sep=""), paste(tf, ".png", sep=""))
+```
+
+```{r}
+# plots the actual points as kml pins
+library(rgdal)
+crime2 <- sector11
+coordinates(crime2) <- c("lon","lat")
+proj4string(crime2) <- CRS("+proj=longlat +datum=WGS84")
+#beat96_ll <- spTransform(beat96, CRS("+proj=longlat +datum=WGS84"))
+writeOGR(crime2["description"], "/home/finn/phd/data/sector11.kml", layer="events", driver="KML") 
+
+# try doing a smoothed kernal
+
+
+grd_params <- summary(GE_SpatialGrid(crime)$SG)$grid
+cellcentre.offset <- grd_params[,1]
+cellsize <- grd_params[,2]
+celldim <- grd_params[,3]
+grd <- GridTopology(cellcentre.offset,cellsize=cellsize,cells.dim=celldim)
+kernel1 <- spkernel2d(crime, poly=bounds, h0=0.001, grd=grd)
+
+## Create matrix of coordinates 
+#sp_point <- matrix(NA, nrow=nrow(crime_locs),ncol=2)
+#sp_point[,1] <- crime_locs$lon
+#sp_point[,2] <- crime_locs$lat
+#colnames(sp_point) <- c("LONG","LAT")
+#mserw <- mse2d(crime, poly=bounds, nsmse=10, range=.01)
+
+
+smoothed <- spkernel2d(crime,poly=bounds,h0=0.001,grd=grd)
+df <- data.frame(k1=smoothed)
+SG <- SpatialGridDataFrame(grd, data=df)
+
+ker.palette <- colorRampPalette(c("white", "orange","red","darkred","brown"), space = "rgb")
+tf <- "/home/finn/phd/data/heatoverlay"
+png(file=paste(tf, ".png", sep=""), width=SGcrime$width, height=SGcrime$height,  bg="transparent")
+par(mar=c(0,0,0,0), xaxs="i", yaxs="i")
+spplot(SG,col.regions=ker.palette(100),xlim=SGcrime$xlim,ylim=SGcrime$ylim)
+dev.off()
+kml <- kmlOverlay(SGcrime, paste(tf, ".kml", sep=""), paste(tf, ".png", sep=""))
+```
+
+```{r}
+crime <- SpatialPointsDataFrame(sector11[,c('lon','lat')], sector11)
+proj4string(crime) <- CRS("+proj=longlat +datum=WGS84")
+bounds <- bbox(crime) # calculate the bounding box on the points
+
+grd_params <- summary(Sobj_SpatialGrid(crime,maxDim=100)$SG)$grid
+cellcentre.offset <- grd_params[,1]
+cellsize <- grd_params[,2]
+celldim <- grd_params[,3]
+grd <- GridTopology(cellcentre.offset,cellsize=cellsize,cells.dim=celldim)
+kbw001 <- spkernel2d(crime, bounds, h0=.01, grd)
+hist(kbw001)
+
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+# minimize the msre
+#mserw <- mse2d(sp_point, poly=poly, nsmse=100, range=.05) <- how does this actually work? Lets try doing it myself
+#bw <- mserw$h[which.min(mserw$mse)] ## Bandwidth=.01
+
+#par(mar=c(4,4,0.5,0.5))
+#plot(x=mserw$h, y=mserw$mse, xlab="Bandwidth", ylab="MSE", type="l")
+#i<-which.min(mserw$mse)
+#points(mserw$h[i], mserw$mse[i])
+
+
+sp_points <- SpatialPoints(coords=crime_locs, proj4string=CRS("+proj=longlat +datum=WGS84"))
+
+
+
+train_rows <- sample(1:nrow(crime_locs),.5*nrow(crime_locs),replace=FALSE)
+train <- SpatialPoints(coords=crime_locs[train_rows,],proj4string=CRS("+proj=longlat +datum=WGS84"))
+test <- SpatialPoints(crime_locs[-train_rows,],proj4string=CRS("+proj=longlat +datum=WGS84"))
+
+ktest <- spkernel2d(test,poly=poly,h0=0.0001,grd=grd)
+ktest <- ktest/sum(ktest,na.rm=TRUE)
+df <- data.frame(k1=rep(NA,8100))
+indx <- 1
+for (bw in c(0.0001,0.0005,0.001,0.005,0.01)){
+  ktrain <-spkernel2d(train,poly=poly,h0=bw,grd=grd)
+  ktrain <-ktrain/sum(ktrain,na.rm=TRUE)
+  mse <- mean((ktrain-ktest)^2,na.rm=TRUE)
+  print(mse)
+  kernal_name <- paste0("k",indx)
+  
+  df[,kernal_name] <- ktrain
+  indx <- indx + 1
+}
+
+
+
+
+
+
+
+kernel1 <- spkernel2d(sp_point, poly=poly, h0=bw, grd=grd)
+kernel2 <- spkernel2d(sp_point, poly=poly, h0=bw*2, grd=grd)
+kernel3 <- spkernel2d(sp_point, poly=poly, h0=bw*4, grd=grd)
+kernel4 <- spkernel2d(sp_point, poly=poly, h0=bw*10, grd=grd)
+
+df <- data.frame(kernel1=kernel1,kernel2=kernel2,kernel3=kernel3,kernel4=kernel4)
+SG <- SpatialGridDataFrame(grd, data=df)
+
+
+## Plot Kernel Maps
+
+ker.palette <- colorRampPalette(c("white", "orange","red","darkred","brown"), space = "rgb")
+
+spplot(SG,col.regions=ker.palette(100),names.attr=c(paste("Bandwidth = ",bw, sep="", collapse=""),"Bandwidth = 0.05", "Bandwidth = 0.1","Bandwidth = 0.15"), main="Dallas Crime Locations  (Kernel Density)")
+
+
+
+#plot the cumulative distribution of the total number of crimes as we go over the top x addresses
+```
+
+
+```{r}
+
+#generate points from 3 different 2d normal distributions
+
+
+```
+
+
+```{r}
+#opt_exask <- options(example.ask=FALSE)
+
+
+```
+
+

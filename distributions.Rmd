@@ -1,0 +1,66 @@
+Distributional Delights
+========================================================
+
+Distribution  Functions
+Beta	pbeta	qbeta	dbeta	rbeta
+Binomial	pbinom	qbinom	dbinom	rbinom
+Cauchy	pcauchy	qcauchy	dcauchy	rcauchy
+Chi-Square	pchisq	qchisq	dchisq	rchisq
+Exponential	pexp	qexp	dexp	rexp
+F	pf	qf	df	rf
+Gamma	pgamma	qgamma	dgamma	rgamma
+Geometric	pgeom	qgeom	dgeom	rgeom
+Hypergeometric	phyper	qhyper	dhyper	rhyper
+Logistic	plogis	qlogis	dlogis	rlogis
+Log Normal	plnorm	qlnorm	dlnorm	rlnorm
+Negative Binomial	pnbinom	qnbinom	dnbinom	rnbinom
+Normal	pnorm	qnorm	dnorm	rnorm
+Poisson	ppois	qpois	dpois	rpois
+Student t	pt	qt	dt	rt
+Studentized Range	ptukey	qtukey	dtukey	rtukey
+Uniform	punif	qunif	dunif	runif
+Weibull	pweibull	qweibull	dweibull	rweibull
+Wilcoxon Rank Sum Statistic	pwilcox	qwilcox	dwilcox	rwilcox
+Wilcoxon Signed Rank Statistic	psignrank	qsignrank	dsignrank	rsignrank
+
+```{r one-dimensional}
+# beta distribution - continuous, conjugate prior to binomial, defined on 0-1
+x = seq(0.01,.99,0.01)
+alist = seq(0.01,1,0.2)
+
+plot(x,x,ylim=c(0,1.6),type="n")
+for (a in alist) {
+  y = dbeta(x,a,a)
+  
+  lines(x,y)
+}
+# symetric beta distribution
+
+f <- function(x,a) {
+  return(dbeta(x,a,a))
+}
+
+
+df <- merge(x,a,all.x = T, all.y = T)
+df$z <- f(df$x,df$y)
+
+library(rggobi)
+g <- ggobi(df)
+
+x = seq(0.01,0.99,0.01)
+a = seq(.1,2,.01)
+z = outer(x,a,f)
+persp3d(x,a,z)
+
+z2 = outer(x,a,"*")
+
+persp(x, a, z, phi = 45, theta = -45)
+
+class(z)
+
+y1 = dbeta(x,.001,.001)
+y2 = dbeta(x,1,1)
+y3 = dbeta(x,0.0001,0.0001)
+plot(x,y3)
+```
+

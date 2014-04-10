@@ -1,0 +1,266 @@
+
+
+```{r simple-linear-regression}
+x = seq(1,6,by=1)
+y = c(1,3,3,3,5,7)
+#x = runif(1000)
+#y = x + rnorm(1000,0,0.1)
+fit = lm(y~x)
+plot(x,y)
+abline(fit)
+
+# Calculate the 95% confidence intervals on the regression parameters
+alpha<-0.025;  
+fitsum = summary(fit)
+datapoints=fitsum$df[2]; # effective number of data points = number of data points - number of parameters
+talpha<- qt( c(alpha/2, 1-alpha/2), datapoints);
+b <-fitsum$coefficients[2,1]     # Coefficient `b' in `y=a+bx'
+sb<-fitsum$coefficients[2,2]    # Std. Error for coefficient `b'
+a <- fitsum$coefficients[1,1]
+sa <- fitsum$coefficients[1,2]
+binterval = b+talpha*sb 
+ainterval = a+talpha*sa
+print(binterval)
+print(ainterval)
+
+library(rjags)
+
+model <- "model {
+    for (i in 1:I) {
+      y[i] ~ dnorm(mu[i],tau)
+      mu[i] <- alpha + beta*x[i]
+    }  
+    alpha ~ dnorm(0,1.0E-6)
+    beta ~ dnorm(0,1.0E-6)
+    sigma ~ dunif(0,100)
+    tau <- 1/pow(sigma,2)
+  }"
+
+
+reg.mod <- jags.model(textConnection(model), data = list('x'=x,'y'=y,'I'= 6), n.chains = 4, n.adapt=100000 )
+reg.res <- coda.samples(reg.mod,var=c('alpha','beta','sigma'),n.iter=100000,thin=10)
+summary(reg.res)
+plot(reg.res)
+```
+
+```{r speed-of-light}
+newcomb <- c(28, 26, 33, 24, 34, -44, 27, 16, 40, -2, 29, 22, 24, 21, 25, 30, 23, 29, 31, 19, 24, 20, 36, 32, 36, 28, 25, 21, 28, 29, 37, 25, 28, 26, 30, 32, 36, 26, 30, 22, 36, 23, 27, 27, 28, 27, 31, 27, 26, 33, 26, 32, 32, 24, 39, 28, 24,25, 32, 25, 29, 27, 28, 29, 16, 23)
+hist(newcomb,breaks=50)
+mu = mean(newcomb)
+nsd = sd(newcomb)
+
+library(rjags)
+
+model <- "model {
+    for (i in 1:I) {
+      y[i] ~ dnorm(mu,tau)
+    }  
+    mu ~ dnorm(0,1.0E-6)
+    sigma ~ dunif(0,100)
+    tau <- 1/pow(sigma,2)
+  }"
+
+
+reg.mod <- jags.model(textConnection(model), data = list('y'=newcomb,'I'= length(newcomb)), n.chains = 4, n.adapt=100000 )
+reg.res <- coda.samples(reg.mod,var=c('mu','sigma'),n.iter=10000,thin=10)
+summary(reg.res)
+plot(reg.res)
+```
+
+```{r arline-fatalities}
+airline = read.csv('/home/finn/phd/courses/BDA2012/airline.csv')
+n = nrow(airline)
+nmu = sum(airline$fatal)
+
+# Very simple model, all years are the same.
+x = seq(20,28,by=.01)
+theta = dgamma(x,shape=nmu,rate=n) # if we use a conjugate prior we can get an analytical solution for the posterior
+plot(x,theta,type='l')
+
+library(rjags)
+# we assume there is a single fixed rate of airline crashes per year, theta.
+
+model <- "model {
+    for (i in 1:I) {
+      y[i] ~ dpois(theta)
+    }  
+    theta ~ dgamma(1.0E-3, 1.0E-3)
+  }"
+
+y = c(airline$fatal,NA)
+I = nrow(airline)+1
+
+a1.mod <- jags.model(textConnection(model), data = list('y'=y,'I'= I), n.chains = 4, n.adapt=100000 )
+a1.res <- coda.samples(a1.mod,var=c('theta','y[27]'),n.iter=10000,thin=10)
+summary(a1.res)
+plot(a1.res)
+
+# A slightly more sophisticated model. A constant rate of crashes/mile flown
+
+model2 <- "model {
+    for (i in 1:I) {
+      mu[i] <- theta * miles[i]
+      y[i] ~ dpois(mu[i])
+    }  
+    theta ~ dgamma(1.0E-3, 1.0E-3)
+  }"
+
+a2.mod <- jags.model(textConnection(model2), data = list(miles=c(airline$miles,20), y = c(airline$fatal,NA), I=nrow(airline)+1), n.chains = 4, n.adapt=100000 )
+a2.res <- coda.samples(a2.mod,var=c('theta','y[27]'),n.iter=100000,thin=10)
+summary(a2.res)
+plot(a2.res)
+
+```
+
+```{r airline-glm}
+# a) crude estimate
+airline$logresp = log(airline$fatal) - log(airline$miles)
+fit = lm(logresp~year1975,data=airline)
+summary(fit)
+plot(airline$year1975,airline$logresp)
+abline(fit)
+print ((summary(fit))$coefficients)
+
+# b) glm 
+glmfit <- glm(fatal~year1975+offset(log(miles)), family='poisson',data=airline)
+summary(glmfit)
+print (summary(glmfit)$coefficients)
+
+# c) BUGS
+
+model2 <- "model {
+    for (i in 1:I) {
+      mu[i] <- exp(a+b*i) * miles[i]
+      y[i] ~ dpois(mu[i])
+    }
+    b ~ dnorm(0,1E-6)
+    a ~ dnorm(0,1E-6)
+  }"
+
+a2.mod <- jags.model(textConnection(model2), data = list(miles=c(airline$miles,20), y = c(airline$fatal,NA), I=nrow(airline)+1), n.chains = 4, n.adapt=100000 )
+a2.res <- coda.samples(a2.mod,var=c('a','b','y[27]'),n.iter=100000,thin=10)
+summary(a2.res)
+plot(a2.res)
+
+print(xyplot(a2.res[,1:2]))
+print(densityplot(a2.res[,1:2],aspect='fill'))
+
+```
+
+```{r fetal-growth}
+fetal <- read.csv('/home/finn/phd/courses/BDA2012/fetal.csv',header=T)
+fetal$ones <- rep(1,nrow(fetal))
+t <- table(aggregate(ones~id,data=fetal,sum)$ones)
+fetal$ones <- NULL
+
+#variables for each baby are: hc - head circumference, ga - gestational age, tga - transformed gestational age
+
+fit1 = lm(hc~tga,data=fetal)
+plot(fetal$tga,fetal$hc)
+abline(fit1)
+fetal$fit1 = fit1$fitted.values
+
+
+# personalized linear model
+fetal$id2 <- as.factor(fetal$id)
+fit2 = lm(hc~tga+id2+id2*tga,data=fetal)
+summary(fit2)
+fetal$fit2 = fit2$fitted.values
+
+# mixed linear model
+library(lme4)
+m0 <- lmer(hc~tga+(1|id),data=fetal)
+fetal$fit3 <- fitted(m0)
+
+# pick some fetuses with multiple measurements and show how personalization improves the fit
+t <- as.data.frame(table(fetal$id))
+t <- t[t$Freq > 6,]
+names(t) <- c('id','freq')
+f <- merge(t,fetal,by="id")
+f <- f[with(f,order(id,ga)),]
+par(mfrow=c(3,3))
+for (i in unique(f$id)) {
+  s <- f[f$id==i,]
+  plot(s$tga,s$hc,xlab="gestational age",ylab="head circumference")
+  lines(s$tga,s$fit1,col='red')
+  lines(s$tga,s$fit2,col='green')
+  lines(s$tga,s$fit3,col='blue') # this looks like a model which only allows the intercept to vary by id.
+}
+```
+
+```{r fetal-jags}
+# now with JAGS!
+model <- "
+#fixed data needed by the model
+data {
+  zero[1] <- 0
+  zero[2] <- 0
+  R[1,1] <- 0.1
+  R[1,2] <- 0
+  R[2,1] <- 0
+  R[2,2] <- 0.5
+}
+
+
+model {
+   for (i in 1:I) {
+      u[i,1:2]~dmnorm(zero,Omega.u)
+   }
+
+    # for each record
+    for (j in 1:N) {
+      mu[j] <- (beta[1] + u[id[j],1]) + (beta[2] + u[id[j],2])*tga[j]
+      hc[j] ~ dnorm(mu[j],tau.e)
+    }
+
+    # priors
+    beta[1] ~ dnorm(0.0,1.0E-6)
+    beta[2] ~ dnorm(0.0,1.0E-6)
+    tau.e <- pow(sigma.e,-2)
+    sigma.e ~ dunif(0,100)
+    Omega.u ~ dwish(R,2)
+    Sigma.u <- inverse(Omega.u)
+
+  }"
+
+numIds = length(unique(fetal$id))
+fetal.dat <- list( id = as.integer( factor(fetal$id) ),
+                   hc = fetal$hc,
+                  tga = fetal$tga,
+                    N = nrow(fetal),
+                    I = length( unique(fetal$id) ) )
+
+data = list(hc=fetal$hc, tga=fetal$tga, id=1:numIds, I = numIds, N = nrow(fetal) )
+mod <- jags.model(textConnection(model),data = fetal.dat, n.chains = 4, n.adapt = 10000)
+res <- coda.samples(mod,var=c('beta[1]','beta[2]','sigma.e','Sigma.u'),n.iter=10000,thin=1)
+summary(res)
+plot(res)
+
+```
+
+
+
+
+# c) BUGS
+
+model2 <- "model {
+    for (i in 1:I) {
+      mu[i] <- exp(a+b*i) * miles[i]
+      y[i] ~ dpois(mu[i])
+    }
+    b ~ dnorm(0,1E-6)
+    a ~ dnorm(0,1E-6)
+  }"
+
+a2.mod <- jags.model(textConnection(model2), data = list(miles=c(airline$miles,20), y = c(airline$fatal,NA), I=nrow(airline)+1), n.chains = 4, n.adapt=100000 )
+a2.res <- coda.samples(a2.mod,var=c('a','b','y[27]'),n.iter=100000,thin=10)
+summary(a2.res)
+plot(a2.res)
+
+```
+
+
+
+
+
+

@@ -1,0 +1,768 @@
+```{r functions, include=FALSE,message=FALSE}
+tplot <- function(t) {
+  barplot(t[order(t,decreasing=T)],las=2)
+}
+
+# returns distance in m
+sp_distance <- function(lat1,lon1,lat2,lon2) {
+  dlat <- as_radians(lat1 - lat2)
+  dlon <- as_radians(lon1- lon2)
+  lat1 <- as_radians(lat1)
+  lat2 <- as_radians(lat2)
+  a <- (sin(dlat/2))^2+((sin(dlon/2))^2)*cos(lat1)*cos(lat2)
+  c <- 2*atan2(sqrt(a),sqrt(1-a))
+  d <- 6371000*c
+  return(d)
+}
+
+
+#grd is a GridTopology object, df is a data frame with the 1st column being lon, and the 2nd lat
+hist_on_grid <- function(df,grd) {
+  df2 <- data.frame(df)
+  dims = attr(grd,'cells.dim')
+  offsets = attr(grd,'cellcentre.offset')
+  sizes = attr(grd,'cellsize')
+  width = dims[1]
+  height = dims[2]
+  result = rep(0,width*height) # create a vector of counts
+  
+  df2$cellx = ceiling((df[,1]-offsets[1])/sizes[1]) - 1
+  df2$cellx[df2$cellx < 0] <- 0
+  df2$celly = height - ceiling((df[,2]-offsets[2])/sizes[2]) - 1
+  df2$celly[df2$celly < 0] <- 0
+  
+  df2$cell <-  (df2$celly*width) + df2$cellx
+  df2$ones <- rep(1,nrow(df2)) 
+  
+  a <- aggregate(ones~cell,data=df2,sum)
+  for (row in 1:nrow(a)){
+    result[a[row,1]] <- a[row,2]
+  }
+
+  return(result)
+}
+
+library(splancs)
+library(maptools)
+library(rgdal)
+library('aspace')
+
+# input data must have columns 'lon' and 'lat', grid size is size of cell in meters. Adds a cell column to the dataset.
+add_grid <- function(data,grid_size){
+  projection <- CRS("+proj=longlat +datum=WGS84")
+  crime <- SpatialPointsDataFrame(data[,c('lon','lat')], data)
+  # create a polygon representing the bounds of the data
+  x1 <- min(data$lon)
+  x2 <- max(data$lon)
+  y1 <- min(data$lat)
+  y2 <- max(data$lat)
+  bounds <- as.points(c(x1,x2,x2,x1),c(y1,y1,y2,y2))
+
+  ref_lat = mean(y1,y2)
+  lon_dist = sp_distance(ref_lat,0,ref_lat,0.1) # the distance in m of a 10th of a degree of longitude (depends on latitude)
+  lat_dist = sp_distance(0,0,0.1,0) # the distance in km of a 10th of a degree of latitude. This is constant and idepended of the latitude and longitude
+  aspect = lon_dist/lat_dist 
+  width = sp_distance(ref_lat,x1,ref_lat,x2) # the width in meters ~delta(longitude)
+  height = sp_distance(x1,0,x2,0) # the height in meters = delta(latitude)
+  widthlon = x2 - x1
+  widthlat = y2 - y1
+  max_dim = max(width,height) # the maximum dimension in meters
+  
+  md <- round(max_dim/grid_size) # the largest number of cells accross the largest dimension
+
+  # calculate a grid 
+  grd <- Sobj_SpatialGrid(crime,maxDim=md,asp = aspect)$SG 
+  proj4string(grd) <- projection
+  grd_top <- GridTopology(summary(grd)$grid[,1],cellsize=summary(grd)$grid[,2],cells.dim=summary(grd)$grid[,3])
+  grd.dims = attr(grd_top,'cells.dim')
+  offsets = attr(grd_top,'cellcentre.offset')
+  sizes = attr(grd_top,'cellsize')
+  ncells <- grd.dims[1]*grd.dims[2]
+
+  data$cellx = ceiling((data[,'lon']-x1)/sizes[1]) - 1
+  data$cellx[data$cellx < 0] <- 0 
+
+  data$celly = grd.dims[2] - ceiling((data[,'lat']-y1)/sizes[2]) - 1
+  data$celly[data$celly < 0] <- 0
+
+  # label each cell from left to right then top to bottom. Minimum possible value is 0. Maximum possible is (ncells-1)
+  data$cell = (data$celly*grd.dims[1]) + data$cellx
+  return(list(data,ncells,grd_top))
+}
+
+#data, the data which must contain a ones column and a cell column.
+#ncells, the number of cells in the grid on which the data is partitioned
+#the GridTopology of the grid
+plot_grid_counts <- function(df,ncells,grd_top,title,breaks) {
+  a <- aggregate(ones~cell,data=df,sum)
+  histogram <- rep(0,ncells)
+  for (row in 1:nrow(a)) {
+    indx = a[row,1]
+    count = a[row,2]
+    histogram[indx] <- count
+  }
+ 
+  h.grid <- SpatialGridDataFrame(grd_top, data = as.data.frame(histogram))
+  ker.palette <- colorRampPalette(c("white", "orange","red","darkred","brown"), space = "rgb")
+  if (missing(breaks)) {
+    spplot(h.grid,col.regions=ker.palette,main=title)
+  } else {
+    spplot(h.grid,col.regions=ker.palette,main=title,at=breaks)
+  }
+  
+}
+
+
+
+setClass("pai",representation(indx="numeric",cum="numeric",area="numeric"))
+setMethod("length", "pai", function(x) length(x@indx))
+setMethod("plot","pai", function(x,main="PAI",xlab="proportion of area",ylab="proportion of events") {plot(x@indx,x@cum,xlab=xlab,ylab=ylab,type="l",main=main)})
+
+pai <- function(df, pred, actual) {
+  df <- df[order(-df[,pred]),]
+  df$cum <- cumsum(df[,actual])
+  total = df$cum[nrow(df)]
+  df$cum <- df$cum/total
+  w = 1/nrow(df)
+  df$indx <- w*(1:nrow(df))
+  # calculate the area under the curve - Rieman sum
+  area = w*sum(df$cum[2:nrow(df)])
+  
+  result = new("pai",indx=df$indx,cum=df$cum,area=area)
+  return(result)
+}
+
+```
+
+Crime Waves, Hotspots and Hotdots : Spatio-temporal patterns in crime
+========================================================
+
+Existing predictive policing methods rely heavily on mapping crime levels to idenfify 'hot spots', geographical areas of high crime that persist over time. A common method is to use 2d kernal density estimation to generate a smooth map of the geographical distribution of crime. The kernal width and the time-window on which to aggreagte points may be optimized based on huristics or cross-validation. The time-windows used are typcially relatively long (6 months-1 year) so this method essentially predicts that crime today at a given place will be the (spatially smoothed) long term average of crime at that location. 
+
+Also prevelent in the liturature is the notion of repeat victimization. A few victims (or locations) account for a large percentage of the total number of crimes. The risk of a repeat event decays rapidly with time leading to the notion of high crime areas that are very localized in both time and space, sometimes refered to as 'hot dots'. Clusters of hot-dots may lead to a temporaly unstable hotspot. The extent and characteristics of repeat and near repeat victimisation may depend on neighbourhood features, including housing homogeneity, and socioeconomic metrics.
+
+This implies there should be non-trivial spatial and temporal patterns in crime event data that could be captured by a machine learning algorithm.
+
+
+```{r load-data, include=FALSE, cache=TRUE}
+data = read.table("/home/finn/phd/data/geocoded_clean.txt",sep="\t",header=TRUE)
+data$ones <- rep(1,nrow(data))
+```
+
+```{r}
+arrests = read.table("/home/finn/phd/data/arrests2.csv",sep="|",header=TRUE,quote = "\"'",strip.white=TRUE)
+
+
+```
+
+
+
+```{r reporting-area-size}
+# calculate the quantiles for lat and lon for each reporting area
+a <- aggregate(cbind(lat,lon)~reportingarea,data=data,FUN = function(x) c(q10 = quantile(x,probs=0.1),q90 = quantile(x,probs=0.9)))
+a <- as.data.frame(as.list(a))
+a$dlat = a$lat.q90.90. - a$lat.q10.10.
+a$dlon = a$lon.q90.90. - a$lon.q10.10.
+metersPerLat = sp_distance(31,0,32,0) # a degree of lattitude in meters
+metersPerLon = sp_distance(32.96,96,32.96,97) # a degree of longitude in meters, where lat is 32.9
+a$dx = a$dlat*metersPerLat
+a$dy = a$dlon*metersPerLon
+a[,"d_av"] <- apply(a[,8:9],1,mean)
+a[,"d_min"] <- apply(a[,8:9],1,min)
+a[,"d_max"] <- apply(a[,8:9],1,max)
+hist(a$d_max,main = "Histogram of diameter of reporting areas (along longest axis)",xlab="largest diameter (meters)")
+mean(a$d_max)
+```
+
+
+
+The existance of repeat and near repeat victimisation has implications for the development of policing policy. It implies that results may be improved by targeted policing of those areas (or people) subject to repeat victimisation and those close (or similar) to them.
+
+If repeat victimisation is event dependent - this increases again the likely effectiveness of targeted policing, in that preventing one event can actually contribute to preventing others, even without actually arresting/removing a criminal from the area. There are many models explaining event dependent repeat/near repeat victimisation in terms of social and individual learning. The broken windows theory is derived from the assumption that light crimes can contribute to trigger more serious crimes.
+
+We want to assess the strength/validity of a theory by the extent to which it helps us to do prediction.
+```{r} 
+# Question 1: is there repeat & near repeat victimisation? The opposite question is, is the data spatially and temporaly homogenius.
+# Answer: Yes the data is not homogenius. Evidence -  we can predict a lot better by allowing the signal to vary spatially.
+
+# Question 2: is there event dependent repeat/near-repeat victimisation.
+
+d = data[data$year < 2006,] # I don't want to contaminate all my data by doing detailed visualizations.
+# lets look just a burglaries at single residences
+burg = d[d$crime_trunk == "burglary",]
+burg = burg[burg$prem == "RESIDENCE",]
+write.table(burg[,c('key','day','lat','lon')],"/home/finn/phd/data/residential_burglary_2000_2005.txt",sep="|",row.names=FALSE,col.names=TRUE,quote=FALSE)
+
+
+burg$key <- as.character(burg$key)
+by_address <- as.data.frame(table(burg$key))
+order_stats <- table(by_address$Freq) # distribution of how many times times an individual property has been burgled.
+# if all properties were equaly likely to be burgled, then the distribution should decay a lot faster. The chance of 19 at the same house would be infintesimal.
+# we are missing one data point in this series - that is the number of single residences that were not burgled at all - could perhaps approximate from census data
+
+
+
+
+
+
+
+
+```
+
+
+
+
+Build features based on the reporting area as the geographical level of aggregation. 
+
+The target variable will be the number of crimes in an area on each day. 
+
+Crimes are categoriesed into types: `r levels(data$crime_trunk)`
+
+and into the type of premesis they were commited at: `r levels(data$prem)`
+
+The features will be the number of crimes of each type over the last day, 7 days and year, and the number of crimes targeting each premesis type over the last day, 7 days and year. There are 10 types of crime and 3 time periods we aggregate over giving 30 features, plus another 30 for the 10 types of premisis/days back combination. Then I also calculate the total crime over all types/premesis for each period back yeilding 63 features.
+
+I built features for 2000,2001 & 2002
+
+```{r build-features-reporting-area-aggregated, include=FALSE, cache=TRUE}
+# actual feature generation is done in Java. Output data in correct format for java program, and then read the results back in.
+
+subset <- data[data$year < 2003,c('lat','lon','day','reportingarea','prem','crime_trunk','ones')] 
+max(subset$day) # needed by java code
+areas <- as.integer(as.character(subset$reportingarea))
+t <- as.data.frame(table(areas))
+t$Freq <- NULL
+write.table(subset,"/home/finn/phd/data/20140108/events_2000_2002_ra.txt",sep="|",row.names=FALSE,col.names=TRUE,quote=FALSE)
+write.table(t,"/home/finn/phd/data/20140108/reportingareas.txt",sep="|",row.names=FALSE,col.names=FALSE,quote=FALSE)
+
+# RUN THE JAVA PROGRAM NOW ...
+
+features <- read.table("/home/finn/phd/data/20140108/f_2000_2002_ra.txt",sep=",",header=TRUE)
+```
+
+This gives a data set with `r ncol(features)-1` features and `r nrow(features)` instances. Each instance corresponds to a given reporting area on a given day. Split it into a training and a test data set.
+```{r split-test-train-ra, message=FALSE, include=FALSE}
+split = ((max(subset$day) - 365)/2)*nrow(t)
+train = features[0:split,]
+test = features[split:nrow(features),]
+```
+
+We build a baseline model with the total amount of crime over the past year as the only feature.
+```{r linear-model-baseline-ra, echo=FALSE,cache=TRUE}
+lm_base <- lm(target~A0ones_1_365 ,data=train)
+summary(lm_base)
+test$base <- predict(lm_base,newdata=test)
+ra_base_rmse = sqrt(mean((test$base - test$target)^2))
+```
+
+And compare that the the results we get using all the features
+```{r linear-model-all-ra, echo=FALSE, cache=TRUE}
+lm_all <- lm(target~.,data=train)
+summary(lm_all)
+test$all <- predict(lm_all,newdata=test)
+ra_rsme = sqrt(mean((test$all - test$target)^2))
+```
+
+The ratio of the root-mean-squared-errors is `r ra_rsme/ra_base_rmse` ... not a lot of improvment.
+
+What happens if we model at the sector level
+```{r build-features-sector-level-aggregated, cache=TRUE, include=FALSE}
+by_sector <- data[data$year < 2003 & !is.na(data$sector),c('lat','lon','day','sector','prem','crime_trunk','ones')] 
+areas <- as.integer(as.character(by_sector$sector))
+t <- as.data.frame(table(areas))
+t$Freq <- NULL
+write.table(by_sector,"/home/finn/phd/data/20140108/events_2000_2002_sect.txt",sep="|",row.names=FALSE,col.names=TRUE,quote=FALSE)
+write.table(t,"/home/finn/phd/data/20140108/sectors.txt",sep="|",row.names=FALSE,col.names=FALSE,quote=FALSE)
+max(by_sector$day) # needed by java code
+nrow(by_sector) # needed by java code
+features_sect <- read.table("/home/finn/phd/data/20140108/f_2000_2002_sect.txt",sep=",",header=TRUE)
+```
+
+```{r linear-model-sector,cache=TRUE,echo=FALSE}
+split = ((max(by_sector$day) - 365)/2)*nrow(t)
+train = features_sect[0:split,]
+test = features_sect[split:nrow(features_sect),]
+
+lm_base_s <- lm(target~A0ones_1_365 ,data=train)
+summary(lm_base_s)
+test$base <- predict(lm_base_s,newdata=test)
+s_base_rmse = sqrt(mean((test$base - test$target)^2))
+
+
+lm_all_s <- lm(target~.,data=train)
+summary(lm_all_s)
+test$all <- predict(lm_all_s,newdata=test)
+s_rsme = sqrt(mean((test$all - test$target)^2))
+
+# lets try crime last year and crime last week
+lm2 <- lm(target~A0ones_1_365+A0ones_1_7,data=train)
+test$base2 <- predict(lm2,newdata=test)
+s_base2_rmse = sqrt(mean((test$base2 - test$target)^2))
+
+s_base2_rmse/s_base_rmse
+
+
+```
+The ratio of the all feature rmse to the baseline rmse is now `r s_rsme/s_base_rmse`
+
+
+```{r}
+
+
+histogram_cells <- function(df,ncells) {
+  a <- aggregate(ones~cell,data=df,sum)
+  histogram <- rep(0,ncells)
+  for (row in 1:nrow(a)) {
+    indx = a[row,1]
+    count = a[row,2]
+    histogram[indx] <- count
+  }
+  return (histogram)
+}
+
+
+```
+
+
+```{r}
+# use the counts of total crime to determine if the areas are within study region or not
+# g_all_150 <- add_grid(data,150)
+# d <- g_all_150[[1]]
+# d$cell150 <- d$cell
+
+g_all_200 <- add_grid(data,200)
+d <- g_all_200[[1]]
+d$cell200 <- d$cell
+
+g_all_1000 <- add_grid(d,1000)
+d <- g_all_1000[[1]]
+d$cell1000 <- d$cell
+
+g_all_5000 <- add_grid(d,5000)
+d <- g_all_5000[[1]]
+d$cell5000 <- d$cell
+
+d_all <- d
+
+# to make sure my cells line up I need to define them on the full crime map and then collect the counts only for the residential burglaries.
+```
+
+```{r some-plots}
+#  lets plot the distribution of the number of crimes per reporting area or per grid at various sizes
+d <- d[d$crime_trunk=='burglary' & d$prem=='RESIDENCE',]
+d <- d[!is.na(d$lat),]
+
+
+
+
+a_200 <- aggregate(ones~cell200,data=d,sum)
+a_1000 <- aggregate(ones~cell1000,data=d,sum)
+a_5000 <- aggregate(ones~cell5000,data=d,sum)
+a_ra <- aggregate(ones~reportingarea,data=d,sum)
+a_sector <- aggregate(ones~sector,data=d,sum)
+# this excludes the 0's
+hist(a_200$ones,breaks=50,main="Number of residential burglaries per 200m cell, 2000-2010 ",xlab="Number of residential burglaries") # total 47380
+hist(a_1000$ones,breaks=50,main="Number of residential burglaries per 1000m cell, 2000-2010 ",xlab="Number of residential burglaries") # total 1932
+hist(a_ra$ones,breaks=50,main="Number of residential burglaries per reporting area, 2000-2010 ",xlab="Number of residential burglaries")
+hist(a_sector$ones,breaks=15,main="Number of residential burglaries per reporting sector, 2000-2010 ",xlab="Number of residential burglaries")
+
+d$cell <- d$cell5000
+plot_grid_counts(d,g_all_5000[[2]],g_all_5000[[3]],"Residential burglaries, 5000m grid, 2000-2010")
+plot_grid_counts(g_all_5000[[1]],g_all_5000[[2]],g_all_5000[[3]],"All crime, 5000m grid, 2000-2010",c(0,1,500000))
+
+
+d$cell <- d$cell1000
+plot_grid_counts(d,g_all_1000[[2]],g_all_1000[[3]],"Residential burglaries,1000m grid, 2000-2010")
+plot_grid_counts(g_all_1000[[1]],g_all_1000[[2]],g_all_1000[[3]],"All crime, 1000m grid, 2000-2010",c(0,1,30000))
+
+d$cell <- d$cell200
+plot_grid_counts(d,g_all_200[[2]],g_all_200[[3]],"Residential burglaries, 200m grid, 2000-2010")
+plot_grid_counts(g_all_200[[1]],g_all_200[[2]],g_all_200[[3]],"All crime, 200m grid, 2000-2010",c(0,1,30000))
+```
+
+```{r}
+# count how many crime happened in each cell in total, prior to 2005, in 2005
+d_all$rburgpre2005 = d_all$crime_trunk=='burglary' & d_all$prem=='RESIDENCE' & d_all$year < 2005 
+d_all$rburg2005 = d_all$crime_trunk=='burglary' & d_all$prem=='RESIDENCE' & d_all$year == 2005
+
+counts_200 <- aggregate(cbind(rburgpre2005,rburg2005)~cell200,data=d_all,sum)
+counts_1000 <- aggregate(cbind(rburgpre2005,rburg2005)~cell1000,data=d_all,sum)
+
+# the simplest model will estimate the yearly rate as the average yearly rate in the training set and predict that for the test set
+counts_1000$rate = counts_1000$rburgpre2005/5
+counts_200$rate = counts_200$rburgpre2005/5
+
+# now lets use our hierachical model ... goal is to infer a yearly rate for each cell
+mean_rate = mean(counts_1000$rburgpre2005)
+x = seq(0,1,by=0.01)
+mu = seq(.1,.9,by=0.1)
+K = 4
+plot(x,2*x,type='n')
+for (m in mu) {
+  y = dbeta(x,m*K,(1-m)*K)
+  lines(x,y)
+}
+
+library('rjags')
+
+model <- "model {
+  # likelyhood
+  for (t in 1:N) {
+    y[t] ~ dpois(theta[grids[t]])
+  }
+  #prior
+  for (j in 1:grids){
+    theta[j] ~ dbeta(a,b)
+  }
+
+  a <- mu * kappa
+  b <- (1.0 - mu)*kappa
+  mu ~ dbeta(Amu,Bmu)
+  kappa ~ dgamma(Skappa,Rkappa)
+  Amu <- 1.0
+  Bmu <- 1.0
+  Skappa <- pow(10,2)/pow(10,2)
+  Rkappa <- 10/pow(10,2)
+ 
+}"
+
+y = counts_1000$rburgpre2005
+jags <- jags.model(textConnection(model), data = list('y' = y, 'N' = length(y),'grids'=length(y)),  n.chains = 4, n.adapt = 100)
+update(jags, 1000) #burn in
+jags.samples(jags, c('mu', 'tau'), 1000) # sample
+```
+
+
+```{r}
+d <- d_all[d_all$year < 2005,]
+
+#d <- d[d$crime_trunk=='burglary' & d$prem=='RESIDENCE',]
+d <- d[!is.na(d$lat),]
+
+
+# a150 <- data.frame(unique(g_all_150[[1]]$cell))
+# output150 <- d[,c('lat','lon','day','cell150','ones')]
+# names(output150) <- c('lat','lon','period','area','ones')
+# write.table(output150,"/home/finn/phd/data/20140220/events150_s.txt",sep="|",row.names=FALSE,col.names=TRUE,quote=FALSE)
+# write.table(a150,"/home/finn/phd/data/20140220/cells150.txt",sep="|",row.names=FALSE,col.names=FALSE,quote=FALSE)
+
+
+cells200 <- aggregate(ones~cell200+cell1000+cell5000,data = d_all,sum)
+ 
+a200 <- cells200[,c('cell200','cell1000','cell5000')]
+names(a200) <- c('area','area1000','area5000')
+
+#a200 <- data.frame(unique(d$cell200))
+output200 <- d[,c('lat','lon','day','cell200','cell1000','cell5000','crime_trunk','prem','ones')]
+names(output200) <- c('lat','lon','period','area','area1000','area5000','crime','prem','ones')
+write.table(output200,"/home/finn/phd/data/20140226/events200_all.txt",sep="|",row.names=FALSE,col.names=TRUE,quote=FALSE)
+write.table(a200,"/home/finn/phd/data/20140226/cells200.txt",sep="|",row.names=FALSE,col.names=TRUE,quote=FALSE)
+
+
+a1000 <- unique(a200[,c('area1000','area5000')])
+names(a1000) <- c('area','area5000')
+#a1000 <- data.frame(unique(g_all_1000[[1]]$cell))
+output1000 <- d[,c('lat','lon','day','cell1000', 'cell5000','crime_trunk','prem','ones')]
+names(output1000) <- c('lat','lon','period','area','area5000','crime','prem','ones')
+write.table(output1000,"/home/finn/phd/data/20140226/events1000_all.txt",sep="|",row.names=FALSE,col.names=TRUE,quote=FALSE)
+write.table(a1000,"/home/finn/phd/data/20140226/cells1000.txt",sep="|",row.names=FALSE,col.names=TRUE,quote=FALSE)
+
+n_res_burgs1000 = nrow(output1000[output1000$crime=='burglary' & output1000$prem=='RESIDENCE'&output1000$period > 364,])
+n_res_burgs200 = nrow(output200[output200$crime=='burglary' & output200$prem=='RESIDENCE'&output200$period > 364,])
+
+# a_ra <- data.frame(unique(data$reportingarea)) very similar to 1000m grid
+# output_ra <- d[,c('lat','lon','day','reportingarea','sector','ones')]
+# names(output_ra) <- c('lat','lon','period','area','area_sec','ones')
+# write.table(output_ra,"/home/finn/phd/data/20140220/events_ra.txt",sep="|",row.names=FALSE,col.names=TRUE,quote=FALSE)
+# write.table(a_ra,"/home/finn/phd/data/20140220/cells_ra.txt",sep="|",row.names=FALSE,col.names=FALSE,quote=FALSE)
+```
+
+
+
+
+
+```{r}
+library(ggplot2)
+# AN ALTERNATIVE SMALLER SET OF DATA TO WORK WITH ...
+data$division  <- as.factor(data$division)
+data$sector <- as.factor(data$sector)
+sector41 <- data[data$sector==41 & data$lon > -96.875,]
+sector41 <- sector41[!is.na(sector41$lat),]
+g41_all_200 <- add_grid(sector41,500)
+t <- g41_all_200[[1]]
+ggplot(sector41,aes(x=lon,y=lat))+geom_point(size=2)
+plot_grid_counts(g41_all_200[[1]],g41_all_200[[2]],g41_all_200[[3]],"All crime in sector-41, 200m grid")
+sector41_b <- t[t$crime_trunk=='burglary' & t$prem=='RESIDENCE'& t$year < 2004,] # leaves me with 710 events total ...
+plot_grid_counts(sector41_b,g41_all_200[[2]],g41_all_200[[3]],"Residentual Burglary in sector-41, 200m grid")
+
+b200 <- data.frame(unique(t$cell))
+bout <- sector41_b[,c('lat','lon','day','cell','ones')]
+names(bout) <- c('lat','lon','period','area','ones')
+write.table(bout,"/home/finn/phd/data/20140220/sector41_events500.txt",sep="|",row.names=FALSE,col.names=TRUE,quote=FALSE)
+write.table(b200,"/home/finn/phd/data/20140220/sector41_cells500.txt",sep="|",row.names=FALSE,col.names=FALSE,quote=FALSE)
+
+library(Matrix)
+tmp = readMM("/home/finn/phd/data/20140220/f200train")
+test = readMM("/home/finn/phd/data/20140220/f200valid")
+library(glmnet)
+fit = glmnet(tmp[,2:ncol(tmp)],tmp[,1])
+pred = predict(fit,newx=test[,2:ncol(test)],s=0,type="response")
+
+
+
+su```
+
+Generalized linear models/Poisson Regression
+```{r}
+library(glmnet)
+d = read.table("/home/finn/phd/data/20140214/f200train",sep=",",header=TRUE)
+test = read.table("/home/finn/phd/data/20140214/f200valid",sep=",",header=TRUE)
+
+xtest <- model.matrix(target~.,data=test)
+x = model.matrix(target~.,data=d)
+y = d$target
+
+lm1 <- lm(target~.,data = d)
+test$p1 <- predict(lm1,newdata=test)
+
+
+fit <- cv.glmnet(x,y,family = "poisson")
+plot(fit)
+
+
+test$p2=predict(fit,newx=xtest,s=fit$lambda.min, type="response")  # Predictions on the test data
+plot(test$p2,test$target)
+plot(test$p1,test$target)
+
+
+pai_lm = pai(test,"p1","target")
+pai_glm = pai(test,"p2","target")
+
+plot(pai_lm)
+plot(pai_glm)
+# things I could do would be to calculate PAI and optimise lambda based on that - but really I want to get in there and optimise for ranking inside the regression algorithm 
+
+
+
+# I need to be able to calculate the Area under the curve quickly as the error estimate.
+# A few questions ... 
+
+# is RMSE on an independent validation set always a suitable measure for comparing regression models - or does it depend on the data. 
+# (it clearly may depend on what problem we are trying to solve)
+
+# how can I directly optimise for the problem I am trying to solve (a ranking problem) - within my regression.
+# what is the alternative name for PAI? - for Google purposes ...
+
+
+
+```
+
+```{r}
+
+
+```
+
+
+
+
+
+
+
+
+
+
+
+
+```{r simple-linear-model-on-grid}
+data$division <- as.factor(data$division)
+s <- data[data$year < 2004 & data$crime_trunk=='burglary' & data$prem='RESIDENCE',]
+s <- s[!is.na(s$lat),]
+
+gridded <- add_grid(s,600) # this will be much too big to process here in R. have to do it in VW.
+plot_grid_counts(gridded[[1]],gridded[[2]],gridded[[3]],'crime 2000 - 2003')
+d <- gridded[[1]]
+d1 = d[d$year == 2000,]
+d2 = d[d$year == 2001,]
+d3 = d[d$year == 2002,]
+c = seq(0,25,by=1)
+plot_grid_counts(d1,gridded[[2]],gridded[[3]],"burglaries, division 1, 2000")
+plot_grid_counts(d2,gridded[[2]],gridded[[3]],"burglaries, division 1, 2001")
+plot_grid_counts(d3,gridded[[2]],gridded[[3]],"burglaries, division 1, 2002")
+
+#griddata <- gridded[[1]][,c('lat','lon','day','cell','ones')] #'crime_trunk','prem'
+griddata <- s[,c('lat','lon','day','ones','ones')] # a grid with only one cell
+ncells <- gridded[[2]]
+t <- data.frame(0:(ncells-1))
+# I will assume that crime can only occur in cells where it has occured (due to the problem that I don't have boundaries for sectors)
+t <- as.data.frame(table(griddata$cell))
+t$Freq <- NULL
+
+t <- data.frame(x=c(1)) # single cell
+write.table(griddata,"/home/finn/phd/data/20140130/events_2000_2003_1cell_div1.txt",sep="|",row.names=FALSE,col.names=TRUE,quote=FALSE)
+write.table(t,"/home/finn/phd/data/20140130/cells_with_crime_1cell_div1.txt",sep="|",row.names=FALSE,col.names=FALSE,quote=FALSE)
+
+features_grid <- read.table("/home/finn/phd/data/20140116/f_2000_2002_500m.txt",sep=",",header=TRUE)
+features_grid$area <- as.factor(features_grid$area)
+
+train <- head(features_grid,n=84315)
+test <- tail(features_grid,n=84315)
+lmg <- lm(target~.,data=train) # even with just the category variables we do worse than the global model. we have added 230 variables and we have 84315 instances and performance gets worse...
+
+test$pred <- predict(lmg,newdata=test)
+r.rsme <- sqrt(sum((test$pred - test$target)^2))
+
+lmg_global <- lm(target ~ . -area,data=train)
+test$predglob <- predict(lmg_global,newdata=test)
+r.rsme.global = sqrt(sum((test$predglob - test$target)^2))
+
+r.rsme.global/r.rsme
+
+lm_cross <- lm(target ~A0ones_1_1+A0ones_1_7+A0ones_1_365+area+area*A0ones_1_365+area*A0ones_1_7+area*A0ones_1_1,data=train)
+test$predrpref <- predict(lm_cross,newdata=test)
+r.rsme.cross = sqrt(sum((test$predrpref - test$target)^2)) # performance gets worse with these additional terms.
+
+# lets see what happens when we predict on the training data. As we expect the models with more parameters outperform those with less ON THE TRAINING DATA (so over-fitting accounts for worse performance on test data)
+test2 <- train
+test2$predglob <- predict(lmg_global,newdata=test2)
+r.rsme.global.train = sqrt(sum((test2$predglob - test2$target)^2))
+test2$pred <-predict(lmg,newdata=test2)
+r.rsme.train <- sqrt(sum((test2$pred - test2$target)^2))
+test2$predrpref <- predict(lm_cross,newdata=test2)
+r.rsme.cross.train = sqrt(sum((test2$predrpref - test2$target)^2))
+
+
+# having done a model in VW load it back in ...
+
+test <- read.table("/home/finn/apps/vowpal_wabbit-7.4/finn/ctest",sep="|",header=FALSE)
+vw.pred <- read.table("/home/finn/apps/vowpal_wabbit-7.4/finn/qf.pred",header=FALSE)
+vw.rmse = sqrt(sum((vw.pred$V1 - test$V1)^2))
+plot(test$V1,vw.pred$V1)
+
+vw.pred.base <- read.table("/home/finn/apps/vowpal_wabbit-7.4/finn/base.pred",header=FALSE)
+vw.rmse.base <- sqrt(sum((vw.pred.base$V1 - test$V1)^2)) #slightly higher than that produced from R
+
+```
+
+```{r}
+d = read.table("/home/finn/phd/data/20140130/f_2000_2002_2000m.txt",sep=",",header=TRUE)
+lm1 <- lm(target~A0ones_1_365,data=d)
+summary(lm1) #.98 # r^2 = 0.1
+
+d = read.table("/home/finn/phd/data/20140130/f_2000_2002_1000m.txt",sep=",",header=TRUE)
+lm2 <- lm(target~A0ones_1_365,data=d)
+summary(lm2) #.92 # r^2 = .04
+
+d = read.table("/home/finn/phd/data/20140130/f_2000_2002_200m.txt",sep=",",header=TRUE)
+lm3 <- lm(target~A0ones_1_365,data=d)
+summary(lm3) #.79, #r^2 = .01
+
+d = read.table("/home/finn/phd/data/20140130/f.txt",sep=",",header=TRUE)
+lm4 <- lm(target~A0ones_1_365,data=d)
+
+```
+
+```{r}
+library(ggplot2)
+sims = read.table("/home/finn/phd/data/20140204/sim_expectation_w.txt",sep=",",header=FALSE)
+# doing a plot with error bars ...
+ggplot(sims, aes(x=V1, y=V2))+geom_errorbar(aes(ymin=V2-V3*10,ymax=V2+V3*10))+geom_point() + xlab("lambda1") + ylab("E[w]")+ ggtitle("Expectation of the slope parameter w as a function of crime rate lambda1")
+
+
+
+
+```
+
+
+
+
+```{r}
+l2 = c(0,1e-6,5e-6,1e-5,2e-05,4e-05,8e-05,0.0001,0.0002,0.004,0.008,0.01,0.05,0.1,0.5,1)
+l2rmse = c(4.10977945992,3.91546724952,2.4643048834,1.78799338897,0.797368151433,0.263480718607,0.262188559674,0.263604503018,0.263992874231,0.271832601219,0.273979811739,0.275227863399,0.275184829586,0.275278642938,0.275278642938,0.275278642938)
+
+
+plot(l2[1:9],l2rmse[1:9],xlab="l2",ylab="rmse",main="RMSE vs l2 regularisation")
+# this is for personalized prediction over a 200x200m grid on division 1 and incorporates features by crime type and premesis. 
+
+
+
+
+
+
+```{r}
+# lets try svm ...
+# tuning the svm on 1000 instances and 64 variables yeilds parameters gamma and cost that when applied to full data set do substantially worse than the default.
+# the tuned version selects large cost and small gamma. The impications of large cost I can sort of follow. the implications of varying gamma are less clear to me.
+library(e1071)
+# just for fun lets do svm on just two variables
+
+m.svm1 <- svm(target~A0ones_1_365,data=train)
+test$svm1pred <- predict(m.svm1,newdata=test)
+plot(features_sect$A0ones_1_365, features_sect$target)
+points(test$A0ones_1_365,test$svm1pred,col=2)
+svm_base_rmse <- sqrt(mean((test$target-test$svm1pred)^2))
+points(test$A0ones_1_365,test$base,col=4)
+
+# is linear regression doing better here, not so much because of the linear but because it is an algorithm that is trying to minimize rmse wheras svm is not?
+# ie the assesment metric is 'nicer' to linear regression?
+
+
+tuneset <- train[sample(nrow(train),10000),]
+gamma = 2^(-1:1)
+tune <- tune.svm(target~., data = tuneset, gamma = c(0.00001,0.0001,0.001,0.01,0.1,1,2), cost = c(0.1,1,10,100,1000)) # run this once you have a fixed box.
+
+
+t <- tune.svm(tuneset[,1:63],tuneset[,64])
+
+m.svm <- svm(target~.,data=train,gamma=1e6,cost=1000)
+test$svmpred <- predict(m.svm,newdata=test)
+
+svm.rmse = sqrt(mean((test$target - test$svmpred)^2))
+
+svm.rmse/l.rmse
+
+
+```
+
+
+
+
+thoughts ...
+Possible problems - the data is noisy. Overal predictability at the sector level is a lot higher than at neighbourhood level as this averages out more of the noise. 
+The additional features may only be able to improve predictions that are very localized in time and space.
+I should not worry that, at a local data we can only account for a very small percentage of the variability with the variables we include (we expect high noise). 
+Instead think about the implications over the longer term of acting on those predictions vs acting randomly (assuming no spill-over effects etc).
+Try to do predictions hour by hour - some areas much more dangerous at certain times of day?
+
+
+
+
+
+
+```{r elasticnet}
+q = read.table("/home/finn/apps/vowpal_wabbit-7.4/finn/results_q.txt",sep=",",header=FALSE)
+names(q) <- c('id','l1','l2','rmse','area')
+ncols = 10
+colors <- rev(heat.colors(ncols + 1))
+z = q$rmse
+indx = round((z - min(z))/diff(range(z))*ncols + 1)
+zcolor <- colors[indx]
+
+plot(q$l1,q$l2,col=zcolor,log='xy',pch=19,cex=3*q$area)
+
+x = 1:10
+y = 1:10
+z = x*y
+zcolor <- colors[(z - min(z))/diff(range(z))*100 + 1]
+plot(x,y,col=zcolor)
+
+```
+
+
+
+
+
+
+
+
+
+

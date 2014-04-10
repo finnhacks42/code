@@ -1,0 +1,311 @@
+Data preparation
+========================================================
+
+Load raw data and clean/calculate new features
+------------------------------------------------------------------------------------
+```{r load-data, message=FALSE,warning=FALSE}
+#load the data
+data = read.table("/home/finn/phd/data/fixrawdata.txt", header=TRUE, sep="\t")
+data$key <- paste0(as.character(data$block),as.character(data$direction),as.character(data$street),as.character(data$reportingarea))
+data$key<- gsub(" ","", data$key , fixed=TRUE)
+data$area <- as.integer(as.character(data$reportingarea))
+data$sector <- as.integer(substr(data$beat,1,2))
+data$division <-as.integer(substr(data$beat,1,1))
+```
+
+I have categorized the crimes based on the first two digits of the *ucr1* column and maped the resulting factor levels to descriptive strings based on the information provided at http://policereports.dallaspolice.net/ucr.htm. The meaning of a couple of two digit codes, that occured in our data but were not listed on the above website, were inferred from viewing a summary of the descriptions provided for these cases in the data. I then constructed 4 groupings of these categories. Currently they are:
+
+- Light: criminal mischief, disorderly, vice, fence and found property
+- Violent: assult, agg assult, murder, rape and robbery
+- Property: theft, burglary, un-authorized use of a motor vehicle
+- Other: all other crime categories 
+```{r categorize-crime, message=FALSE,warning=FALSE}
+#categorize the crime
+data$crime <- as.factor(substr(data$ucr1,1,2))
+library(plyr)
+data$crime <- revalue(data$crime, c("01"="murder", "02"="rape","03"="robbery","04"="agg_assult","05"="burglary","06"="theft","07"="uumv","08"="assult","09"="arson","10"="forge","11"="fraud","12"="embezzlement","13"="fence","14"="crim_misch","16"="vice","17"="sex off","18"="drugs","20"="child","24"="disorderly","26"="other","29"="runnawy","32"="flid","33"="injured","34"="injured2","39"="att_suicide","40"="death","41"="missing_person","42"="lost","43"="found"))
+
+light <- c("crim_misch","disorderly","vice","fence","found") #matches the broken windows paper by Gregorio?
+violent <- c("assult","agg_assult","murder","rape","robbery") 
+property <- c("theft","burglary","uumv")
+
+
+data$crime_category <-"other"
+data$crime_category[data$crime %in% light] <- "light"
+data$crime_category[data$crime %in% violent] <- "violent"
+data$crime_category[data$crime %in% property] <- "property"
+data$crime_category <- as.factor(data$crime_category)
+```
+
+I calculated a number of temporal variables from the *rep_date*, *starttime*, *endtime* and *dispatchtime* variables. They are:
+- year the year in which the event took place
+- month: the month of year in which the event took place
+- dow: the day of week in which the event took place
+- hourofday: the hour of day - based on dispatchtime
+- responcetime: the difference between starttime and dispatchtime. Where negative, 24 hours was added to deal with cases on either side of the midnight boundary
+- onscenetime: the difference between endtime and starttime. Where negative, 24 hours was added to deal with cases on either side of the midnight boundary
+
+```{r compute-temporal-varaibles, message=FALSE,warning=FALSE}
+library(lubridate)
+data$year <- as.integer(substr(data$rep_date,7,10))
+data$starttime <- hms(data$starttime)
+data$endtime <- hms(data$endtime)
+data$dispatchtime <- hm(data$dispatchtime) 
+data$responcetime <- as.duration(data$starttime - data$dispatchtime)
+data$onscenetime <- as.duration(data$endtime - data$starttime)
+data$onscenetime[!is.na(data$onscenetime) & data$onscenetime < 0] <- data$onscenetime[!is.na(data$onscenetime) & data$onscenetime < 0]+as.duration(hours(24))
+data$responcetime[!is.na(data$responcetime) & data$responcetime < 0] <- data$responcetime[!is.na(data$responcetime) & data$responcetime < 0]+as.duration(hours(24))
+data$date <- mdy(as.character(data$rep_date))
+data$dow <-wday(data$date)
+data$month <-month(data$date) 
+data$hourofday <- hour(data$dispatchtime) # this is the hour of day on which the crime was reported
+
+# the columns d1 and d2 appear to contain the start and end points of when the crime could have occured
+data$d1 <- mdy(as.character(data$date_occurence1))
+data$d2 <- mdy(as.character(data$date_occurence2))
+data$t1 <- hm(data$time_occurence1)
+data$t2 <- hm(data$time_occurence2)
+
+data$dt_start <- data$d1+data$t1
+data$dt_end <- data$d2+data$t2
+data$dt <- data$dt_start
+data$dt_uncert <- rep(0,nrow(data)) # the uncertainty (in hours) as to when the crime occured
+
+data$dispatchdt <- data$date+data$dispatchtime
+data$reportlag <- difftime(data$dispatchdt,data$dt,units='mins')
+
+uncert <- which(!is.na(data$dt_end)) # indices of rows where there is uncertainty as to when the crime occured
+du <- data[uncert,c('dt_start','dt_end','dispatchdt')]
+du$uncert <- difftime(du$dt_end,du$dt_start,units='hours')
+du$dt <- du$dt_start + du$uncert/2
+du$reportlag <- difftime(du$dispatchdt,du$dt_end, units='mins')
+data[uncert,c('dt_uncert','dt','reportlag')] <- du[,c('uncert','dt','reportlag')]
+rm(du)
+rm(uncert)
+data$reportlag <- as.integer(data$reportlag) # the difference from the last possible time the crime could have occured until the police were dispatched (in minutes)
+
+# TODO what should we do when the reportlag is negative? about 9% of the data. Currently replace dt with the dispatchdt.
+neg <- which(data$reportlag < 0)
+data[neg,'dt'] <- data[neg,'dispatchdt']
+neg <- which(data$dt_uncert < 0)
+data[neg,'dt_uncert'] <- 0
+rm(neg)
+
+
+data$hourofdaymid <- hour(data$dt)
+
+
+data$date_occurence1 <- NULL
+data$date_occurence2 <- NULL
+data$time_occurence1 <- NULL
+data$time_occurence2 <- NULL
+data$d1 <- NULL
+data$d2 <- NULL
+data$t1 <- NULL
+data$t2 <- NULL
+data$dispatchtime <- NULL
+data$rep_date <- NULL
+data$record_date <- NULL # not currently relevent - may be required later to merge with addtional datasets
+data$off_date <- NULL
+data$starttime <- NULL # now captured by repsoncetime
+data$endtime <- NULL # now captured by onscenetime
+data$date <- NULL # now captured by dispatchdt
+
+data$responcetime <- as.integer(data$responcetime)
+data$onscenetime <- as.integer(data$onscenetime)
+data <- data[!is.na(data$dispatchdt),]
+data$date <- floor_date(data$dispatchdt,unit='day')
+start <- min(data$date)
+data$day <- as.integer(difftime(data$date,start,units='days'))
+
+```
+
+```{r clean-age-gender-race}
+data$age <- as.integer(as.character(data$age))
+data$gender <- revalue(data$gender,c(' '=NA,'U'=NA,'Withheld'=NA))
+data$race <- revalue(data$race,c(' '=NA,'{'=NA,'Withheld'=NA,'C'='O','I'='O','S'='O','U'='O','E'='O'))
+
+```
+
+Drop features we are not using
+```{r drop-columns}
+data$agency <- NULL # all Dallas Police
+data$signal1 <- NULL # alternate crime categorization. ucr preferred in liturature
+data$signal2 <- NULL # alternate crime categorization. ucr preferred in liturature
+data$ucr2 <- NULL # mostly missing, we use ucr1
+data$watch <- NULL # can be replaced by discretization of time
+data$name <- NULL # for now, hard to sumarize sensibly 
+data$bus_block <- NULL #alternate address fields, unknown purpose
+data$bus_direction <- NULL
+data$bus_street <- NULL
+data$bus_city <- NULL
+data$weather <- NULL # would better be replaced by downloading weather data seperately 
+data$status <- NULL #almost always missing
+data$block <- NULL # captured by new value key (stands for address)
+data$street <- NULL
+data$direction <- NULL
+data$city <- NULL
+data$state <- NULL
+data$zip <- NULL
+data$reportingarea <- NULL #replaced by area
+
+```
+
+```{r save-cleaned-data}
+write.table(data,"/home/finn/phd/data/cleaned.csv",sep="\t",row.names=FALSE,col.names=TRUE)
+#data <- read.table("/home/finn/phd/data/cleaned.csv",sep="\t")
+```
+
+Load geocodings and calculate accuracy metrics
+------------------------------------------------------------------------------------
+Load the geocodings, calculate accuracy metrics and centroids. Create a subset of the geocodings that we deem to be accurate. Calculate the percentage of crimes and percentage of addresses that were accurately located.
+```{r geocoding, message=FALSE, warning=FALSE}
+library('aspace') # spatial point patterns
+sp_distance <- function(lat1,lon1,lat2,lon2) {
+  dlat <- as_radians(lat1 - lat2)
+  dlon <- as_radians(lon1- lon2)
+  lat1 <- as_radians(lat1)
+  lat2 <- as_radians(lat2)
+  a <- (sin(dlat/2))^2+((sin(dlon/2))^2)*cos(lat1)*cos(lat2)
+  c <- 2*atan2(sqrt(a),sqrt(1-a))
+  d <- 6371000*c
+  return(d)
+}
+
+geos = read.table("/home/finn/phd/data/geocoded4.txt",header=TRUE,sep="|")
+geos$street_matches  <- as.logical(geos$street_matches)
+geos$area <- as.integer(as.character(geos$reportingarea)) #so that I can ignore data for which the reporting area was not represented as an integer (including that it was left blank)
+
+ # we are going to use this as the basis for the locations of the reporting areas and on which to base the location of the remaining data.
+accurate <- geos[!is.na(geos$geo_conf) & !is.na(geos$street_matches) & geos$street_matches &  !is.na(geos$number_diff) & geos$number_diff == 0 &!is.na(geos$area),]
+
+
+# caclulate how many distinct accurate locations we have within each reporting area
+accurate$ones <- rep(1,nrow(accurate))
+geos$ones <- rep(1,nrow(geos))
+dl <- aggregate(ones~area,data=accurate,sum)  # counts the number of distinct locations successfully geocoded
+dl2 <- aggregate(ones~area,data=geos,sum) # counts the number of distinct locations
+names(dl) <- c('area','distinct_accurate_locs')
+names(dl2) <- c('area','distinct_locs')
+dl <- merge(dl,dl2,by='area')
+rm(dl2)
+
+# calculate the median point of each reporting area
+centroid_lat <- aggregate(lat~area,data=accurate,median)
+centroid_lon <- aggregate(lon~area,data=accurate,median)
+centroids <- merge(centroid_lat,centroid_lon,by='area')
+names(centroids) <- c('area','centroid_lat','centroid_lon')
+rm(centroid_lat)
+rm(centroid_lon)
+areas <- merge(dl,centroids, by='area')
+areas <- areas[with(areas,order(-distinct_accurate_locs)),]
+rm(centroids)
+rm(dl)
+
+# plot some specific areas to get a feel for what they look like
+a1 <- accurate[accurate$area == 8811,]
+a2 <- accurate[accurate$area ==1216,]
+a3 <- accurate[accurate$area ==4148,]
+plot(a1$lon,a1$lat)
+plot(a2$lon,a2$lat)
+plot(a3$lon,a3$lat)
+rm(a1)
+rm(a2)
+rm(a3)
+
+
+accurate <- merge(accurate, areas[,c('area','distinct_accurate_locs','centroid_lat','centroid_lon')],by="area")
+
+# caclulate the distribution of distances from the median point of your reporting area
+accurate$dist <- sp_distance(accurate$lat,accurate$lon,accurate$centroid_lat,accurate$centroid_lon)
+b <- seq(0,5000,by=100)
+b <- c(b,max(accurate$dist))
+hist(accurate$dist,breaks=b, xlim = c(0,2000), xlab="distance from centroid (meters)",main="distribution of distances to centroid")
+rm(b)
+
+accurate <- accurate[accurate$dist < 2000 & accurate$distinct_accurate_locs > 5,] #choose the threshold of how far point can lie from the centroid of their reporting area
+areas <- areas[with(areas,order(-distinct_accurate_locs)),]
+accurate <- accurate[with(accurate,order(-count)),] #order by the number of crimes that occured at that location
+
+# percentage of street addresses located acceptably 
+address_located_per <- nrow(accurate)/nrow(geos)
+crimes_located_per <- sum(accurate$count)/sum(geos$count)
+
+# rename some variables
+names(accurate)[which(names(accurate)=='count')] <- 'area_event_count'
+
+# drop some variables we don't want for now
+accurate$number <- NULL
+accurate$street <- NULL
+accurate$ones <- NULL
+accurate$area <- NULL # this is already in the raw data and we don't need to duplicated it
+accurate$street_matches <-NULL #all true
+accurate$number_diff <- NULL # all zero
+
+```
+Combine cleaned data with geocodings and output
+------------------------------------------------------------------------------------
+```{r merge}
+geocoded <- merge(data,accurate,by='key',all.x=FALSE,all.y=FALSE)
+data <- geocoded
+rm(geocoded)
+```
+
+
+```{r truncate-crime-categories} 
+#restrict crime categories to just the top 10 - all others are marked as other
+ct <- as.data.frame(prop.table(table(data$crime)))
+data$crime_trunk <- data$crime
+ct <- ct[with(ct,order(-Freq)),]
+ct$top <- c(rep(1,10),rep(0,nrow(ct)-10))
+ct$Freq <- NULL
+names(ct) <- c('crime','top')
+d <- merge(data,ct,by='crime')
+otherindx <- which(d$top == 0)
+d[otherindx,'crime_trunk'] <- 'other'
+d$crime_trunk <- as.factor(as.character(d$crime_trunk))
+d$top <- NULL
+rm(ct)
+
+# could do something better than this later - ie cagorize additional ones based just on what type of crime occurs there.
+pac <- as.data.frame(prop.table(table(data$property_attack_code)))
+pac <- pac[with(pac,order(-Freq)),]
+pac$top <- c(rep(1,10),rep(0,nrow(pac)-10))
+pac$Freq <- NULL
+names(pac) <- c('property_attack_code','top')
+d <- merge(d,pac,by='property_attack_code')
+otherindx <- which(d$top == 0)
+d$pac_cat <- as.character(d$property_attack_code)
+d[otherindx,'pac_cat'] <- 'other'
+d$pac_cat <- as.factor(as.character(d$pac_cat))
+rm(pac)
+rm(otherindx)
+
+library(plyr)
+d$prem <- revalue(d$pac_cat, c("501"="RESIDENCE","910"="PUBLIC_STREET","503"="APARTMENT","920"="APARTMENT_PARKING","510"="DRIVEWAY","937"="BUSINESS_PARKING","913"="OTHER","106"="DEPARTMENT_STORE","108"="CONVENIENCE_STORE","812"="SCHOOL","other"="OTHER"))
+
+data <- d
+rm(d)
+
+data$sector <- as.factor(data$sector)
+data$division <- as.factor(data$division)
+```
+
+
+```{r}
+write.table(data,"/home/finn/phd/data/geocoded_clean.txt",sep="\t",row.names=FALSE,col.names=TRUE)
+```
+
+
+
+```{r}
+# clean up values no longer required.
+#rm(accurate)
+#rm(areas)
+#rm(geos)
+#rm(light)
+#rm(start)
+#rm(property)
+#rm(violent)
+```
+

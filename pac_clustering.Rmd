@@ -1,0 +1,33 @@
+This is some playing with the idea that we might be better of grouping the property attack codes on the basis of their similarity in the data rather than manually from the names of the codes.
+
+```{r build-pac-features}
+# create a feature column containing the counts for each hour of day
+t <- aggregate(ones~property_attack_code+hourofdaymid,data=d,sum)
+names(t)[3] <- 'hour'
+pac <-reshape(t, idvar = "property_attack_code", timevar = "hourofdaymid", direction = "wide")
+
+# create a feature column containing the counts for each type of crime
+t <- aggregate(ones~property_attack_code+crime, data = d, sum)
+names(t)[3] <- 'sum'
+t2 <-reshape(t, idvar = "property_attack_code", timevar = "crime", direction = "wide")
+pac <- merge(pac,t2,by='property_attack_code')
+pac[is.na(pac)] <- 0
+pac[,-1] <- scale(pac[,-1])
+pacf <- as.matrix(pac[,-1])
+
+# now do some kind of clustering
+# Ward Hierarchical Clustering
+d <- dist(pacf, method = "euclidean") # distance matrix
+fit <- hclust(d, method="ward") 
+plot(fit) # display dendogram
+groups <- cutree(fit, k=5) # cut tree into 5 clusters
+# draw dendogram with red borders around the 5 clusters 
+rect.hclust(fit, k=5, border="red")
+
+# exploring with PCA we seem to just pick up the fact that there are outliers (no doubt due to the higher varience of vector summaries backed by few instances)
+
+pc <- prcomp(x=pac[,-1],center=FALSE,scale=FALSE)
+
+
+
+```

@@ -1,0 +1,227 @@
+Latent Dirchlet Allocation
+========================================================
+```{r functions}
+tplot <- function(t) {
+  barplot(t[order(t,decreasing=T)],las=2)
+}
+
+# returns distance in m
+sp_distance <- function(lat1,lon1,lat2,lon2) {
+  dlat <- as_radians(lat1 - lat2)
+  dlon <- as_radians(lon1- lon2)
+  lat1 <- as_radians(lat1)
+  lat2 <- as_radians(lat2)
+  a <- (sin(dlat/2))^2+((sin(dlon/2))^2)*cos(lat1)*cos(lat2)
+  c <- 2*atan2(sqrt(a),sqrt(1-a))
+  d <- 6371000*c
+  return(d)
+}
+
+#grd is a GridTopology object, df is a data frame with the 1st column being lon, and the 2nd lat
+hist_on_grid <- function(df,grd) {
+  df2 <- data.frame(df)
+  dims = attr(grd,'cells.dim')
+  offsets = attr(grd,'cellcentre.offset')
+  sizes = attr(grd,'cellsize')
+  width = dims[1]
+  height = dims[2]
+  result = rep(0,width*height) # create a vector of counts
+  
+  df2$cellx = ceiling((df[,1]-offsets[1])/sizes[1]) - 1
+  df2$cellx[df2$cellx < 0] <- 0
+  df2$celly = height - ceiling((df[,2]-offsets[2])/sizes[2]) - 1
+  df2$celly[df2$celly < 0] <- 0
+  
+  df2$cell <-  (df2$celly*width) + df2$cellx
+  df2$ones <- rep(1,nrow(df2)) 
+  
+  a <- aggregate(ones~cell,data=df2,sum)
+  for (row in 1:nrow(a)){
+    result[a[row,1]] <- a[row,2]
+  }
+
+  return(result)
+}
+```
+
+```{r load-data}
+data = read.table("/home/finn/phd/data/geocoded_clean.txt",sep="\t",header=TRUE)
+```
+
+Calculate the grid, including taking into account the different spatial scales of latitude and longitude.
+```{r build-grid}
+subsample <- data
+subsample <- subsample[!is.na(subsample$lat),]
+
+library(splancs)
+library(maptools)
+library(rgdal)
+library('aspace')
+projection <- CRS("+proj=longlat +datum=WGS84")
+crime <- SpatialPointsDataFrame(subsample[,c('lon','lat')], subsample)
+# create a polygon representing the bounds of the data
+x1 <- min(subsample$lon)
+x2 <- max(subsample$lon)
+y1 <- min(subsample$lat)
+y2 <- max(subsample$lat)
+bounds <- as.points(c(x1,x2,x2,x1),c(y1,y1,y2,y2))
+
+ref_lat = mean(y1,y2)
+lon_dist = sp_distance(ref_lat,0,ref_lat,0.1) # the distance in m of a 10th of a degree of longitude (depends on latitude)
+lat_dist = sp_distance(0,0,0.1,0) # the distance in km of a 10th of a degree of latitude. This is constant and idepended of the latitude and longitude
+aspect = lon_dist/lat_dist 
+width = sp_distance(ref_lat,x1,ref_lat,x2) # the width in meters ~delta(longitude)
+height = sp_distance(x1,0,x2,0) # the height in meters = delta(latitude)
+widthlon = x2 - x1
+widthlat = y2 - y1
+max_dim = max(width,height) # the maximum dimension in meters
+grid_size = 100 # the size of a grid cell in meters
+md <- round(max_dim/grid_size) # the largest number of cells accross the largest dimension
+
+# calculate a grid 
+grd <- Sobj_SpatialGrid(crime,maxDim=md,asp = aspect)$SG 
+proj4string(grd) <- projection
+grd_top <- GridTopology(summary(grd)$grid[,1],cellsize=summary(grd)$grid[,2],cells.dim=summary(grd)$grid[,3])
+grd.dims = attr(grd_top,'cells.dim')
+offsets = attr(grd_top,'cellcentre.offset')
+sizes = attr(grd_top,'cellsize')
+ncells <- grd.dims[1]*grd.dims[2]
+
+subsample$cellx = ceiling((subsample[,'lon']-x1)/sizes[1]) - 1
+subsample$cellx[subsample$cellx < 0] <- 0 
+
+subsample$celly = grd.dims[2] - ceiling((subsample[,'lat']-y1)/sizes[2]) - 1
+subsample$celly[subsample$celly < 0] <- 0
+
+# label each cell from left to right then top to bottom. Minimum possible value is 0. Maximum possible is (ncells-1)
+subsample$cell = (subsample$celly*grd.dims[1]) + subsample$cellx
+
+ker.palette <- colorRampPalette(c("white", "orange","red","darkred","brown"), space = "rgb")
+subsample$ones <- rep(1,nrow(subsample))
+
+year2000 = subsample[subsample$year==2000,]
+a <- aggregate(ones~cell,data=year2000,sum)
+histogram <- rep(0,ncells)
+for (row in 1:nrow(a)) {
+  indx = a[row,1]
+  count = a[row,2]
+  histogram[indx] <- count
+}
+h.grid <- SpatialGridDataFrame(grd_top, data = as.data.frame(histogram))
+proj4string(h.grid) <- projection
+title = paste0("Histogram of total crime levels for Dallas in year 2000 on a ",grid_size,"m x ",grid_size,"m grid")
+spplot(h.grid,col.regions=ker.palette,main="Histogram of total crime levels for Dallas in year 2000 on a 1500m x 1500m grid")
+
+```
+
+Clip the grid with the city limits polygon.
+```{r clip-grid}
+library(rgdal)
+city <- readOGR("/home/finn/phd/data/shapefiles/Citylimit/", "CityLimit")
+city <- spTransform(city,projection)
+z = over(h.grid,city) # this is (probably) testing against the center point of the grid. Really I want to check if any of the corners of the grid fall inside the Dallas boundary.
+h.grid$city <- z$CITY
+# we will assume grid sqaures containing no crime in the yr 2000 and where the center of the grid is outside the dallas boundary are genuinely outside and can be excluded.
+dallas <- h.grid$city == 'Dallas'
+outside <- !dallas
+outside[which(is.na(outside))] <- T
+nocrime = h.grid$histogram == 0
+exclude = outside & nocrime
+include <- !exclude
+num.grid.squares<- length(which(include))
+
+boundary = rep(1,nrow(h.grid))
+boundary[which(exclude)] <- 0
+boundary.grid <- SpatialGridDataFrame(grd_top, data = as.data.frame(boundary))
+proj4string(boundary.grid) <- projection
+spplot(boundary.grid,col.regions=ker.palette,main="Grid squares within city of Dallas limits")
+```
+
+
+```{r output-data}
+output_train = subsample[subsample$year < 2002, c('lat','lon','day','cell','crime_trunk')] # years 2000 & 2001 -> features will be built for 2001 from 2000 data
+output = subsample[subsample$year > 2000 & subsample$year < 2003, c('lat','lon','day','cell','crime_trunk')] # years 2001 & 2002 -> f. will be built for 2002.
+maxday = max(output$day)
+minday = min(output$day)
+output$day <- output$day - minday
+ndays = maxday - minday
+
+write.table(output_train,"/home/finn/phd/data/topic_output_2000-2001_5000.txt",sep="|",row.names=FALSE,col.names=TRUE,quote=FALSE)
+write.table(output,"/home/finn/phd/data/topic_output_2001-2002_5000.txt",sep="|",row.names=FALSE,col.names=TRUE,quote=FALSE)
+
+# output a list of all the valid cellIDs
+cells = 0:(ncells-1)
+included.cells <- as.data.frame(cells[which(include)])
+write.table(included.cells,"/home/finn/phd/data/topic_cells_5000.txt",sep="|", row.names=FALSE, col.names=FALSE)
+nrow(output)
+grd.dims
+nrow(included.cells)
+ndays
+
+nrow(output_train)
+max(output_train$day)
+
+```
+
+
+```{r read-vowpal-wabbit-output}
+lda_train <- read.table("/home/finn/apps/vowpal_wabbit-7.4/finn/lda_crime5000_train.dat",sep=" ",header=FALSE)
+lda_train$V101 <- NULL # last one all NA's
+labels_train <- read.table("/home/finn/apps/vowpal_wabbit-7.4/finn/crime_5000_train.labels",sep=",",header=FALSE)
+names(labels_train) <- c('target','baseline')
+lmbase <- lm(target~baseline,data=labels_train)
+
+lda1 <- cbind(lda_train,labels_train)
+lda1$baseline <- NULL
+# now we want to do a basic linear regression. Learn the model ...
+lm1 <- lm(target~.,data=lda1)
+
+
+```
+
+
+
+
+Consider each day to be a document and each location is a word. 
+Each document needs to be represented by a 2 row matrix, where the first row is the word ids and the 2nd row is the counts.
+In this case the word id will be the cell number.
+```{r build-documents}
+subsample$ones <- rep(1,nrow(subsample))
+l <- list()
+indx = 1
+for (day in 1:365) {
+  print(day)
+  c <- subsample[subsample$day == day,]
+  if (nrow(c) > 0) {
+    a <- t(as.matrix(aggregate(ones~cell,data=c,sum))) # this is a 2 row matrix with the first row id and the second row counts
+     storage.mode(a) <- "integer"
+     l[[indx]] <- a
+     indx <- indx + 1
+  } else {
+    print(nrow(c))
+    # no data for that day
+  }
+}
+
+```
+
+```{r lda}
+library('lda')
+ntopics = 9
+vocabulary <- as.character(0:(ncells-1))
+lda <- lda.collapsed.gibbs.sampler(documents = l,K=ntopics, num.iterations = 100, vocab = vocabulary, alpha=0.1, eta=0.001)
+topics <- t(lda$topics) #each column of this matrix is the distribution over locations for a topic.
+
+# plot each topic - corresponding to a distribution over words
+t.grid <- SpatialGridDataFrame(grd_top, data = as.data.frame(topics))
+spplot(t.grid,col.regions=ker.palette)
+
+```
+
+
+
+
+
+
+
+
