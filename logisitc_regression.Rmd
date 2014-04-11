@@ -1,0 +1,11 @@
+Makes some demo data that obeys the assumptions implicit in logistic regression
+Lets start with P(x) <- uniform(0,1)
+P(r|x) = a + bx1 + cx2
+P(y=1|r) = logistic(r) 
+```{r}
+y = a + bx1 + cx2
+
+
+
+```
+
