@@ -360,6 +360,23 @@ Try a number of grid sizes.
 Make each period 1 week.
 Total data used 2000-2004. Training is [2001-2003]. Validate is [2004]
 
+On the events5000
+DATA LOADED
+INPUT TARGET TOTAL:29914
+Data consistant
+Category:crime, levels:10
+Category:prem, levels:10
+Category:ones, levels:1
+Area:area, size:53 ,Area:areaall, size:1 ,
+First period:52, Input periods:260, Output periods:208, Periods/instance:1
+Target Areas:53, Instance timewindows:208, INSTANCES:11024
+Time buckets:3,Total category levels:21, area aggregation levels:2, FEATURES:126
+Target total:23910.0
+DONE
+
+Something is wrong with target generation in Java ...
+python ../pai.py [VW5kallqa4.pred,VW5kallignorea1.pred,VW5kallkeepo1.pred, VW5kallvalid.target ,53]
+
 
 
 
