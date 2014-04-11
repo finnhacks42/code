@@ -375,9 +375,30 @@ Target total:23910.0
 DONE
 
 Something is wrong with target generation in Java ...
-python ../pai.py [VW5kallqa4.pred,VW5kallignorea1.pred,VW5kallkeepo1.pred, VW5kallvalid.target ,53]
+python ../pai.py [VW5kallqa4.pred,VW5kallignorea1.pred,VW5kallkeepo1.pred, VW5kallvalid.target ,53][VW1kallqa10.pred,VW1kallvalid.target,1011]
+
+Best 1k by rmse
+VW1kallignorea3.pred
+VW1kallqa10.pred
+VW1kallkeepo12.pred
+mv VW1kbignorea1.pred baseline1k.pred
+VW1kbdignorea1.pred - baseline for daily
 
 
+Best 5k by rmse
+VW5kallqa4.pred
+VW5kallignorea1.pred
+VW5kallkeepo1.pred
+VW5kbignorea1.pred -> baseline5k.pred
 
+
+python ../pai.py [baseline1k.pred, VW1kallignorea3.pred,VW1kallqa10.pred, VW1kallvalid.target,1011]
+python ../pai.py [baseline5k.pred,VW5kallqa4.pred,VW5kallignorea1.pred, VW5kallvalid.target ,53]
+
+python ../pai.py [baseline1k.pred, VW1kallignorea3.pred,VW1kallqa10.pred, VW1kallvalid.target,1011][VW5kallqa4.pred, VW5kallvalid.target ,53]
+
+python ../pai.py [baseline1k.pred, VW1kallvalid.target,1011][VW1kbdignorea1.pred, VW1kbdvalid.target ,1011]
+
+Daily predictions do worse (even on the baseline)
 
 
