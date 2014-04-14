@@ -21,7 +21,7 @@ for g in groups:
 
 
 plt.legend(bbox_to_anchor=(0., 1.02, 1., .102), loc=3, ncol=3, mode="expand", borderaxespad=0.)
-plt.savefig("comparison"+".png")
+plt.savefig("comparison"+.png")
 plt.show()
         
         

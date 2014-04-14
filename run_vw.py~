@@ -103,7 +103,7 @@ optimal = np.argmax(data[:,6])
 optimal_model = int(data[optimal,0])
 print "optimal model (area under pai)",optimal_model,"l1",data[optimal,1],"l2",data[optimal,2]
 optimal2 = np.argmin(data[:,5])
-print "optimal model (rmse)",data[optimal2,0],"l1",data[optimal2,1],"l2",data[optimal2,2]
+print "optimal model (rmse)",int(data[optimal2,0]),"l1",data[optimal2,1],"l2",data[optimal2,2]
 
 vw.plot_regularization(l1,"l1",1,name+mode_name+"-"+"lasso")
 vw.plot_regularization(l2,"l2",2,name+mode_name+"-"+"ridge")

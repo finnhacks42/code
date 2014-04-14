@@ -1,5 +1,6 @@
 import sys
 import numpy as np
+import vw
 name = sys.argv[1]
 mode_name = sys.argv[2]
 output_name = name+mode_name+".result"

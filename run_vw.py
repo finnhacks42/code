@@ -17,7 +17,7 @@ def run(train,test,l1,l2,run,mode,mode_name,name):
     testout = name+mode_name+str(run)+".tout"
     train_pred = name+"train_pred"
     trainout = name+"train_test.out"
-    train_call = "vw -l .5 --l2 "+str(l2)+" --l1 "+str(l1)+" -d "+train+" --cache_file /tmp/vw.cache -f "+model_name+" --passes 50 --holdout_off "+mode+" 2> "+outname
+    train_call = "vw -l .5 --l2 "+str(l2)+" --l1 "+str(l1)+" -d "+train+" --cache_file /tmp/vw.cache -f "+model_name+" --passes 100 --holdout_off "+mode+" 2> "+outname
     train_pred_call = "vw -t -d "+train+" --cache_file /tmp/vw.cache -i "+model_name+" -p "+train_pred +" 2>"+trainout
     test_call = "vw -t -d "+test+" --cache_file /tmp/vw.valid.cache -i "+model_name+" -p "+pred_name+" 2> "+testout 
    
