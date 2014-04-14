@@ -101,6 +101,7 @@ def plot_regularization(subset,xlabel,xcol,title):
     ax_array[1].set_xlabel(xlabel)
     ax_array[0].legend(loc=2, borderaxespad=0.)
     plt.savefig(title+".png")
+    plt.show()
 
 
 
