@@ -77,6 +77,8 @@ def roc(pred, actual):
     
 
 def rmse(pred, actual):
+    if len(pred) != len(actual):
+	raise ValueError("Predicted and actual lengths differ:"+str(len(pred))+" vs "+str(len(actual)))
     total = 0
     for i in range(len(pred)):
         diff = pow(pred[i]-actual[i],2)
@@ -99,8 +101,6 @@ def plot_regularization(subset,xlabel,xcol,title):
     ax_array[1].set_xlabel(xlabel)
     ax_array[0].legend(loc=2, borderaxespad=0.)
     plt.savefig(title+".png")
-    plt.show()
-
 
 
 

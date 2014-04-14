@@ -47,13 +47,13 @@ result_file = open(name+mode_name+".result")
 for line in result_file.readlines():
     line = line.split(",")
     i = int(line[0])
+    print i
     l1 = float(line[1])
     l2 = float(line[2])
 
     result = run(i)
     result = [str(x) for x in result]
     o.write(str(i)+","+str(l1)+","+str(l2)+","+",".join(result)+"\n")
-    print i
     i+=1
 result_file.close()
 o.close()
