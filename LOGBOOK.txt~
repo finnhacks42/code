@@ -399,6 +399,13 @@ python ../pai.py [baseline1k.pred, VW1kallignorea3.pred,VW1kallqa10.pred, VW1kal
 
 python ../pai.py [baseline1k.pred, VW1kallvalid.target,1011][VW1kbdignorea1.pred, VW1kbdvalid.target ,1011]
 
-Daily predictions do worse (even on the baseline)
+Daily predictions do worse (even on the baseline) - which is not quite a proper baseline ...
+
+20140415
+Writing code to collect tweets through the twitter API
+Sydney bounding box NW -33.683713°150.638019° NE -33.637985° 151.339136° SE -34.074107° 151.310789° SW -34.124174° 150.665251°
+
+
+
 
 
