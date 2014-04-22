@@ -1,5 +1,7 @@
 #vw -k -l .5 --l2 0 -d ctrain --cache_file /tmp/vw.cache  -f model1 --invert_hash model1.read  --passes 100
 # run vw for a range of different l1 and l2 values - saving all outputs. Then I can write the code to evaluate the results later ...
+# TODO change so that it puts the predictions from a logistic through the sigmoid function. 
+# Note: It is not required to specify feature or loss function arguaments to the testing call
 
 from optparse import OptionParser
 from subprocess import call
@@ -27,6 +29,11 @@ def run(train,test,l1,l2,run,mode,mode_name,name):
     print train_pred_call
     call(test_call,shell=True)
     print test_call
+
+    if "logistic" in mode:
+	vw.sigmoid_file(pred_name)
+	vw.sigmoid_file(train_pred)
+	
     p_train = vw.read(train_pred)
     p_test = vw.read(pred_name)
    
@@ -55,11 +62,11 @@ mode = options.mode
 is_test = options.test
 
 if is_test:
-    l1_list = [0,0.00000001,0.000005]
+    l1_list = [0]
     l2_list = [0,0.00000001,0.000005]
 else:
-    l1_list = [0,0.0000000000001,.000000001,.00000001,.0000001,.000001,.00001,.0001]
-    l2_list = [0,0.0000000000001,.00000001,.0000001,.000001,.00001,.0001,.001]
+    l1_list = [0,0.0000000000001,.00000001,.0000001,.000001,.00001,.0001,.001,0.01,0.1,0.5,1]
+    l2_list = [0,0.0000000000001,.00000001,.0000001,.000001,.00001,.0001,.001,0.01,0.1,0.5,1]
 
 # read in the actual_train and actual_test
 actual_train = vw.read(train+".target")

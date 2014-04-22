@@ -2,6 +2,7 @@ import math
 import numpy as np
 import matplotlib.pyplot as plt
 import sys
+import os
 
 def read(f):
     targets = open(f,"r")
@@ -14,6 +15,17 @@ def read(f):
         result.append(p)
     targets.close()
     return result
+
+""" Applies the sigmoid function to all the entries in the specified file"""
+def sigmoid_file(fname):
+	f = open(fname,"r")
+	tmp = open("tmp","w")
+	for line in f.readlines():
+		y = 1.0/(1+np.exp(-1*float(line)))
+		tmp.write(str(y)+"\n")
+	f.close()
+	tmp.close()
+	os.rename("tmp",fname)
 
 
 class PAIGroup():
