@@ -16,12 +16,6 @@ def run(run):
     pai_test = vw.meanPaiArea(p_test,actual_test,num_areas)
     return [rmse_train,pai_train,rmse_test,pai_test]
 
-
-# model goes from 1 - 49, going through l1 and then l2
-#l1_list = [0,.000001,.00001,.0001,.001,.01,.1]
-#l2_list = [0,.000001,.00001,.0001,.001,.01,.1]
-
-
 # we are going to create a new result file model, l1,l2,train_rmse,train_pai,test_rmse,test_pai
 
 name = sys.argv[1]

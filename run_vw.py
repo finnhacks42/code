@@ -1,5 +1,7 @@
 #vw -k -l .5 --l2 0 -d ctrain --cache_file /tmp/vw.cache  -f model1 --invert_hash model1.read  --passes 100
 # run vw for a range of different l1 and l2 values - saving all outputs. Then I can write the code to evaluate the results later ...
+# TODO change so that it puts the predictions from a logistic through the sigmoid function. 
+# Note: It is not required to specify feature or loss function arguaments to the testing call
 
 from optparse import OptionParser
 from subprocess import call
@@ -17,7 +19,7 @@ def run(train,test,l1,l2,run,mode,mode_name,name):
     testout = name+mode_name+str(run)+".tout"
     train_pred = name+"train_pred"
     trainout = name+"train_test.out"
-    train_call = "vw -l .5 --l2 "+str(l2)+" --l1 "+str(l1)+" -d "+train+" --cache_file /tmp/vw.cache -f "+model_name+" --passes 100 --holdout_off "+mode+" 2> "+outname
+    train_call = "vw -l .5 --l2 "+str(l2)+" --l1 "+str(l1)+" -d "+train+" --cache_file /tmp/vw.cache -f "+model_name+" --passes 50 --holdout_off "+mode+" 2> "+outname
     train_pred_call = "vw -t -d "+train+" --cache_file /tmp/vw.cache -i "+model_name+" -p "+train_pred +" 2>"+trainout
     test_call = "vw -t -d "+test+" --cache_file /tmp/vw.valid.cache -i "+model_name+" -p "+pred_name+" 2> "+testout 
    
@@ -27,6 +29,11 @@ def run(train,test,l1,l2,run,mode,mode_name,name):
     print train_pred_call
     call(test_call,shell=True)
     print test_call
+
+    if "logistic" in mode:
+	vw.sigmoid_file(pred_name)
+	vw.sigmoid_file(train_pred)
+	
     p_train = vw.read(train_pred)
     p_test = vw.read(pred_name)
    
@@ -55,10 +62,10 @@ mode = options.mode
 is_test = options.test
 
 if is_test:
-    l1_list = [0,0.00000001,0.000005]
+    l1_list = [0]
     l2_list = [0,0.00000001,0.000005]
 else:
-    l1_list = [0,0.0000000000001,.000000001,.00000001,.0000001,.000001,.00001,.0001]
+    l1_list = [0,0.0000000000001,.00000001,.0000001,.000001,.00001,.0001,.001]
     l2_list = [0,0.0000000000001,.00000001,.0000001,.000001,.00001,.0001,.001]
 
 # read in the actual_train and actual_test
