@@ -3,6 +3,33 @@ import numpy as np
 import matplotlib.pyplot as plt
 import sys
 
+""" takes a multi-dimensional array and returns VW format
+The first column is assumed to be the target and remaining columns are features."""
+def toVW(mdarray,mode="regr"):
+        vw_rows = []
+        for row in mdarray:
+            if mode == "class":
+                if row[0] > 0:
+                    target = 1
+                else:
+                    target = -1
+            elif mode == "regr":
+                target = row[0]
+            else:
+                raise ValueError("Unknown mode:"+mode)
+
+            features = row[1:]
+            s = str(target)+" |"
+            for i in range(len(features)):
+                feature_name = i + 1
+                feature = features[i]
+                if feature != 0:
+                    s += " "+str(feature_name)+":"+str(feature)
+            vw_rows.append(s)
+        return vw_rows
+    
+    
+
 def read(f):
     targets = open(f,"r")
     result = []
