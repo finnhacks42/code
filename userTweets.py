@@ -2,8 +2,12 @@ import json
 import os
 import time
 import simplekml as kml
+from collections import OrderedDict
 
 
+        
+
+'''Extracts tweets with coordinates from the file with the specified name and adds the records to the input dictionary '''
 def extract_journeys(users,filename):
 	data = open(filename,"r")
 	tweets = data.readlines()
@@ -28,7 +32,10 @@ def extract_journeys(users,filename):
 		
 	data.close()
 
-				
+''' writes out the journey of a user '''
+def writeJourney(output,locations):
+       output.write(":".join(locations)+"\n")
+       
 
 
 files = os.listdir("/home/finn/phd/data/tweets")
@@ -47,27 +54,24 @@ for fname in files:
 		#	break
 
 
-#extract_journeys(users,fname)
-#o = open("journeys.csv","w")
-output = kml.Kml()
-counts = {}
+output = open("journeys.csv","w")
 for user,userdata in users.iteritems():
-	locations = set(userdata[0])
-	size = len(locations)
-	count = counts.get(size,0)
-	count += 1
-	counts[size] = count
-	if size > 10:
-		for i in range(len(userdata[0])):
-			coords =[(userdata[0][i].split(","))]
+        locations = list(OrderedDict.fromkeys(userdata[0]))
+        size = len(locations)
+        if size > 2:
+                writeJourney(output,locations)
+
+output.close()
+                
+	
+	#if size > 10:
+	#	for i in range(len(userdata[0])):
+	#		coords =[(userdata[0][i].split(","))]
 			#print userdata[1][i]
 			#print coords
-			output.newpoint(description=userdata[1][i],coords = coords)
+	#		output.newpoint(description=userdata[1][i],coords = coords)
 
-output.save("/home/finn/phd/data/tweets/journeys.kml")
+#output.save("/home/finn/phd/data/tweets/journeys.kml")
 		
 
-sizes = counts.keys()
-sizes.sort()
-for s in sizes:
-	print s,counts[s]	
+
