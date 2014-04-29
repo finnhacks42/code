@@ -172,8 +172,9 @@ d$crime_bin <- as.factor(d$crime_bin)
 d <- d[d$year < 2005,]
 d <- d[d$crime_trunk=='burglary' & d$prem=='RESIDENCE',]
 d <- d[!is.na(d$lat),]
+```
 
-
+```{r}
 cells200 <- aggregate(ones~cell200+cell1000+cell5000,data = d_all,sum)
 a200 <- cells200[,c('cell200','cell1000','cell5000')]
 names(a200) <- c('area','area1000','area5000')
