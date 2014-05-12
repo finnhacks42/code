@@ -28,6 +28,14 @@ def toVW(mdarray,mode="regr"):
                     s += " "+str(feature_name)+":"+str(feature)
             vw_rows.append(s)
         return vw_rows
+
+def saveToVW(filename,mdarray,mode="regr"):
+        lines = toVW(mdarray,mode)
+        f = open(filename,"w")
+        for line in lines:
+                f.write(line+"\n")
+        f.close()
+        
     
     
 
@@ -93,6 +101,8 @@ def pai(pred,actual,num_areas):
         result[ts,1:] = cum
     return result
 
+        
+
 def meanPaiArea(pred,actual,num_areas):
     pais = pai(pred,actual,num_areas)
     m = np.mean(pais,axis=0)
@@ -125,7 +135,19 @@ def class_err(pred,actual):
 		aclass1 = actual[i] > 0
 		if pclass1 == aclass1:
 			correct +=1
-	return 1 - float(correct)/len(pred)	
+	return 1 - float(correct)/len(pred)
+
+# returns an the divergence measure of classification error. Pred is assumed to be a probability of counts > 1. Actual is number of counts
+def divergence(pred,actual):
+	if len(pred) != len(actual):
+		raise ValueError("Predicted and actual lengths differ:"+str(len(pred))+" vs "+str(len(actual)))
+	divergence = 0
+	for i in range(len(pred)):
+                if actual[i] > 0:
+                        divergence += -2*math.log(pred[i])
+                else:
+                        divergence += -2*math.log(1-pred[i])
+	return divergence
 
 def rmse(pred, actual):
     if len(pred) != len(actual):

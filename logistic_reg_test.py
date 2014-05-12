@@ -1,5 +1,6 @@
 import numpy as np
 import math
+import vw
 
 def halvings(n):
     num = 1
@@ -44,17 +45,22 @@ x = np.concatenate((m0,m1,m2,m3),axis=1)
 added = np.dot(x,w)
 risk = sigmoid(added)
 y = np.reshape(bernouli(risk),(n,1))
-print np.mean(y)
 
-print y.shape
-print x.shape
 
 header = ["target"]
 header.extend([str(i+1) for i in range(20)])
-print header
+
 h = ",".join(header)
 data = np.concatenate((y,m1,m2,m3),axis=1) # note intercept is not included in output
-np.savetxt("/home/finn/phd/data/logistictest.csv",data,delimiter=",",header=h,comments='')
+
+train = data[0:1000,:]
+test = data[1000:n,:]
+
+np.savetxt("/home/finn/phd/data/logistic_train.csv",train,delimiter=",",header=h,comments='')
+np.savetxt("/home/finn/phd/data/logistic_test.csv",test,delimiter=",",header=h,comments='')
+
+vw.saveToVW("/home/finn/apps/vowpal_wabbit-7.4/finn/logistic_train",train,mode="regr")
+vw.saveToVW("/home/finn/apps/vowpal_wabbit-7.4/finn/logistic_valid",test,mode="regr")
 
 
 

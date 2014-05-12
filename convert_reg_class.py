@@ -25,7 +25,7 @@ def convert(fname,oname):
 name = sys.argv[1]
 
 convert(name+"train",name+"cltrain")
-convert(name+"valid",name+"clvalid")
+#convert(name+"valid",name+"clvalid")
 
 
 
