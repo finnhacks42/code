@@ -30,16 +30,23 @@ def run(train,test,l1,l2,run,mode,mode_name,name):
     call(test_call,shell=True)
     print test_call
 
+    # converts the predictions to a value between 0-1 indicating the probability of class label = 1
     if "logistic" in mode:
 	vw.sigmoid_file(pred_name)
 	vw.sigmoid_file(train_pred)
 	
     p_train = vw.read(train_pred)
     p_test = vw.read(pred_name)
-   
-    rmse_train = vw.rmse(p_train,actual_train)
+
+    if "logistic" in mode:
+	rmse_train = vw.class_err(p_train,actual_train) 
+	rmse_test = vw.class_err(p_test,actual_test)
+
+    else:
+	rmse_train = vw.rmse(p_train,actual_train)
+	rmse_test = vw.rmse(p_test,actual_test)
+
     pai_train = vw.meanPaiArea(p_train,actual_train,num_areas)
-    rmse_test = vw.rmse(p_test,actual_test)
     pai_test = vw.meanPaiArea(p_test,actual_test,num_areas)
     return [rmse_train,pai_train,rmse_test,pai_test]
     
@@ -54,27 +61,46 @@ parser.set_defaults(test=False,mode="")
 print options,type(options)
 print args
 
-
+# should be raw data - not converted to counts
 train = args[0]
 test = args[1]
+name = train.replace("train","")
 num_areas = int(args[2])
 mode = options.mode
 is_test = options.test
 
-if is_test:
-    l1_list = [0]
-    l2_list = [0,0.00000001,0.000005]
-else:
-    l1_list = [0,0.0000000000001,.00000001,.0000001,.000001,.00001,.0001,.001]
-    l2_list = [0,0.0000000000001,.00000001,.0000001,.000001,.00001,.0001,.001]
+mode_name = mode.replace(" ","").replace("-","").replace(":","").replace("loss_function","")
+
+# if we are doing logistic regression then I need to convert the target values to -1,1 in both train and test
+if "logistic" in mode:
+	call("python ~/code/convert_reg_class.py "+name,shell=True)
+	train = name+"cltrain"
+
+# create and read in target values for the training and validation data. This should be the actual counts - not binary values if logistic regression.
+call("python ~/code/extract_target.py "+train,shell=True)
+call("python ~/code/extract_target.py "+test,shell=True)
 
 # read in the actual_train and actual_test
 actual_train = vw.read(train+".target")
 actual_test = vw.read(test+".target")
-    
-mode_name = mode.replace(" ","").replace("-","").replace(":","")
 
-name = train.replace("train","")
+ 
+
+
+
+
+if is_test:
+    l1_list = [0.0000000000001,.000001,.001,0.1]#[0,0.0000000000001,.00000001,.0000001,.000001,.00001,.0001,.001]
+    l2_list = [0]
+else:
+    l1_list = [0,0.0000000000001,.00000001,.0000001,.000001,.00001,.0001,.001]
+    l2_list = [0,0.0000000000001,.00000001,.0000001,.000001,.00001,.0001,.001]
+
+
+    
+
+
+
 datetime = strftime("%Y%m%d%H%M")
 directory = name+datetime
 os.mkdir(directory)

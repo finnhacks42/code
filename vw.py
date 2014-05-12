@@ -114,11 +114,22 @@ def roc(pred, actual):
     total = float(c[-1])
     normalized = [i/total for i in c]
     return area(normalized)
-    
+
+# returns an indication of the classification error. Pred is assumed to be a probability of counts > 1. Actual is number of counts
+def class_err(pred,actual):
+	if len(pred) != len(actual):
+		raise ValueError("Predicted and actual lengths differ:"+str(len(pred))+" vs "+str(len(actual)))
+	correct = 0
+	for i in range(len(pred)):
+		pclass1 = pred[i] > 0.5
+		aclass1 = actual[i] > 0
+		if pclass1 == aclass1:
+			correct +=1
+	return 1 - float(correct)/len(pred)	
 
 def rmse(pred, actual):
     if len(pred) != len(actual):
-	raise ValueError("Predicted and actual lengths differ:"+str(len(pred))+" vs "+str(len(actual)))
+		raise ValueError("Predicted and actual lengths differ:"+str(len(pred))+" vs "+str(len(actual)))
     total = 0
     for i in range(len(pred)):
         diff = pow(pred[i]-actual[i],2)
