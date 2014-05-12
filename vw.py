@@ -84,6 +84,27 @@ def parsePAI():
             pai_groups.append(PAIGroup(g))
     return pai_groups
 
+
+# generates a baseline prediction, with a prediction for each day/area that is equal to the average number of events in that area over the training set
+def write_baseline(train_actual,num_areas,pred_length,filename):
+        # input in train actual is assumed to be target for {(a1...a_num_areas)period1; (a1...a_num_areas)period2 ... numPeriods}
+        num_times = len(train_actual)/num_areas
+        total = np.array([0]*num_areas)
+        for period in range(num_times):
+                a = period*num_areas
+                b = a+num_areas
+                train_slice = np.array(train_actual[a:b])
+                total = total+train_slice
+        total = total/float(num_times)
+        # total is now the total for each area
+        num_pred_times = pred_length/num_areas
+        o = open(filename,"w")
+        for p in range(num_pred_times):
+                for area in total:
+                        o.write(str(area)+"\n")
+        o.close()
+                             
+
 def pai(pred,actual,num_areas):
     # return a list of the average cumsum of the actual crime, ordered by the predicted area
     # "                the standard error of the above
@@ -100,8 +121,6 @@ def pai(pred,actual,num_areas):
         cum = np.cumsum([x[1] for x in z])
         result[ts,1:] = cum
     return result
-
-        
 
 def meanPaiArea(pred,actual,num_areas):
     pais = pai(pred,actual,num_areas)

@@ -4,6 +4,7 @@ import numpy as np
 import math
 import matplotlib.pyplot as plt
 
+
 # Expects [pred1,pred2, ... predn, actual,num_areas][pred1,pred2,...,predn,actual,num_areas]...[]
 
 groups = parsePAI()
@@ -21,6 +22,8 @@ for g in groups:
 
 
 plt.legend(bbox_to_anchor=(0., 1.02, 1., .102), loc=3, ncol=3, mode="expand", borderaxespad=0.)
+fig = plt.gcf()
+fig.set_size_inches(18.5,10.5)
 plt.savefig("comparison"+".png")
 plt.show()
         

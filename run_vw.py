@@ -102,8 +102,12 @@ directory = name+datetime
 os.mkdir(directory)
 name = directory+"/"+name
 output_name = name+mode_name+".result"
-o = open(output_name,"w")
 
+# write out the baseline file
+baseline_file = name+"baseline"
+vw.write_baseline(actual_train,num_areas,len(actual_test),baseline_file)
+
+o = open(output_name,"w")
 summary_name = name+mode_name+".summary"
 summary = open(summary_name,"w")
 print " ".join(sys.argv)
@@ -157,9 +161,12 @@ print optrmse
 print test+".target"
 print str(num_areas)
 
-#todo calculate baseline ...
+pai_call = "python ~/code/pai.py ["+baseline_file+","+optpai
+if optpai != optrmse:
+    pai_call += ","+optrmse
+pai_call += ","+actual+","+str(num_areas)+"]"
 
-call("python ~/code/pai.py ["+optpai+","+optrmse+","+actual+","+str(num_areas)+"]",shell=True)
+call(pai_call,shell=True)
 
 
 result.close()
