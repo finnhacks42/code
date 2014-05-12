@@ -4,6 +4,8 @@ import shapely
 from shapely.geometry import Polygon
 from shapely.geometry import Point
 from rtree import index
+import networkx as nx
+#TODO remove stuff in brackets from node labels
 
 # loads all the polygons
 sf = shapefile.Reader("/home/finn/phd/data/3rdparty/NSW/1270055003_ssc_2011_aust_shape/Sydney_suburbs.shp")
@@ -18,6 +20,8 @@ for q in polygon_shapes:
     count +=1
 
 # load all the journeys
+journeys = []
+total_length = 0
 f = open("/home/finn/phd/data/tweets/journeys.csv","r")
 for line in f.readlines():
     line = line.split(":")
@@ -32,13 +36,40 @@ for line in f.readlines():
             if p.within(polygons[burb]):
                 if burb != last_suburb:
                     last_suburb = burb
-                    journey.append(suburb_names[burb])
+                    journey.append(burb)
                 break
-    print journey
-            
-            
-        # get the suburb
-        # it would be nice to get the names of the suburb out
-#f.close()
+    if len(journey) > 1:
+        journeys.append(journey)
+        total_length+=len(journey)
+ 
+# create a network
+G = nx.Graph()
+# add nodes
+for i in range(len(suburb_names)):
+    G.add_node(i,label=suburb_names[i])
+
+# add edges
+for j in journeys:
+    for n in range(1,len(j)):
+        a = j[n-1]
+        b = j[n]
+        # create a link a-b
+        edge_data = G.get_edge_data(a,b)
+        if edge_data is None:
+            G.add_edge(a,b,weight=1)
+        else:
+            w = edge_data["weight"]+1
+            G.add_edge(a,b,weight=w)
+
+
+# remove nodes with 0 links.
+delete = []
+for key,value in G.degree().iteritems():
+    if value < 1:
+        delete.append(key)
+G.remove_nodes_from(delete)
+        
+nx.write_gml(G,"/home/finn/phd/data/tweets/twitter_graph.gml")          
+
 
 print "Done"

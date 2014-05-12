@@ -1,0 +1,15 @@
+
+
+Create kernel density estimates, one for each type of crime. Over the full year. Learn a linear model that is a weighted combination of these.
+Try doing a 3D kernel density estimate. (including time)
+
+Do spatial-temporal hawkes process.
+
+What about adding in time ....
+
+```{r}
+data = read.table("/home/finn/phd/data/geocoded_clean.txt",sep="\t",header=TRUE)
+data = data[,c('lon','lat','day','dow','month','hourofday','crime_trunk')]
+```
+
+

@@ -1,0 +1,70 @@
+Title
+========================================================
+
+This is an R Markdown document. Markdown is a simple formatting syntax for authoring web pages (click the **MD** toolbar button for help on Markdown).
+
+When you click the **Knit HTML** button a web page will be generated that includes both content as well as the output of any embedded R code chunks within the document. You can embed an R code chunk like this:
+
+```{r}
+library(glmnet)
+m = readMM("/home/finn/phd/data/20140505/VW1000bgtrain.mm")
+y = m[,1]
+y = 1*(y > 0)
+X = m[,2:ncol(m)]
+rm(m)
+
+fit.lasso = fit1=glmnet(X,y,alpha=1,family = "binomial")
+
+
+```
+
+
+```{r}
+v = readMM("/home/finn/phd/data/20140505/VW1000bgvalid.mm")
+y.valid = v[,1]
+X.valid = v[,2:ncol(v)]
+rm(v)
+lasso.pred = predict(fit.lasso,newx = X.valid,type='response')
+dff = colSums((lasso.pred - y.valid)^2)
+plot(log(fit.lasso$lambda),dff)
+best = which.min(dff)
+coef = predict(fit.lasso,s=fit.lasso$lambda[best],type='coefficients')
+```
+
+
+```{r}
+# a simple 2 variable problem
+set.seed(1)
+sigmoid <- function(x) {
+  return(1/(1+exp(-x)))
+}
+n = 1000
+noise = rnorm(n)
+x = runif(n)
+x2 = runif(n)
+x3 = runif(n)
+x4 = runif(n)
+risk = sigmoid(3*x-2*x2+.1*x4+noise)
+y = (risk > 0.5)*1
+c <- as.factor(y)
+plot(x,x2,col=c)
+
+train = sample(1:n,n/2)
+test = (-train)
+
+y.test = y[test]
+
+X = cbind(x,x2,x3,x4)
+
+library(glmnet)
+fit.lasso = fit1=glmnet(X[train,],y[train],alpha=1,family = "binomial")
+lasso.pred = predict(fit.lasso,newx = X[test,],type='response')
+dff = colSums((lasso.pred - y.test)^2)
+plot(log(fit.lasso$lambda),dff)
+best = which.min(dff)
+
+coef = predict(fit.lasso,s=fit.lasso$lambda[best],type='coefficients')
+
+
+# check which variables are important ...
+```

@@ -409,7 +409,15 @@ Sydney bounding box NW -33.683713°150.638019° NE -33.637985° 151.339136° SE 
 python ~/code/run_vw.py VW1kcltrain VW1kclvalid 1011 --mode "--loss_function logistic"
 optimal model (area under pai) 57 l1 0.001 l2 0.0
 optimal model (rmse) 17 l1 1e-08 l2 0.0
+20140502
+Something is wrong with the geocoded_clean.txt file (at least as far as OpenCSV is concerned). It gets as far as line 339705 then dies (where the first line is line 0) 
 
+1852610 lines in geocoded_clean
+1852609 observations in R (thats good - the last one is the header)
+The issue here was \ at the end of some lines. This is solvable by using '\0' as the escape character. 
+
+20140505 
+Grid sizes, 200 -> 212x235, 1000 -> 43x47, 5000 -> 9x9
 
 20140509
 valid.target has the wrong number of entries in it for some reason...
