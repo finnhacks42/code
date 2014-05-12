@@ -405,6 +405,16 @@ Daily predictions do worse (even on the baseline) - which is not quite a proper 
 Writing code to collect tweets through the twitter API
 Sydney bounding box NW -33.683713°150.638019° NE -33.637985° 151.339136° SE -34.074107° 151.310789° SW -34.124174° 150.665251°
 
+20140502
+Something is wrong with the geocoded_clean.txt file (at least as far as OpenCSV is concerned). It gets as far as line 339705 then dies (where the first line is line 0) 
+
+1852610 lines in geocoded_clean
+1852609 observations in R (thats good - the last one is the header)
+The issue here was \ at the end of some lines. This is solvable by using '\0' as the escape character. 
+
+20140505 
+Grid sizes, 200 -> 212x235, 1000 -> 43x47, 5000 -> 9x9
+
 
 
 

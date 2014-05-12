@@ -1,9 +1,56 @@
-Makes some demo data that obeys the assumptions implicit in logistic regression
-Lets start with P(x) <- uniform(0,1)
-P(r|x) = a + bx1 + cx2
-P(y=1|r) = logistic(r) 
+
 ```{r}
-y = a + bx1 + cx2
+data = read.csv("/home/finn/phd/data/logistictest.csv")
+s = 1:1000
+train = data[s,]
+test = data[-s,]
+
+
+
+model <- glm(target~.,data = train,family = "binomial") # no regularization
+
+
+# do the same thing with gmlnet
+library('glmnet')
+trainX = model.matrix(target~.,data=train)
+trainy = train[,1]
+
+model.lasso =glmnet(trainX,trainy,alpha=1,family = "binomial")
+model.ridge =glmnet(trainX,trainy,alpha=0,family = "binomial")
+model.elastic = glmnet(trainX,trainy,alpha=0.1,family = "binomial")
+
+# now how well does each of these models perform at predicting the test data ...
+testX = model.matrix(target~.,data=test)
+testy = test[,1]
+
+lasso.pred = predict(model.lasso,newx=testX,type="response") # response is the probability between 0 and 1 of y==1
+lasso.cpred = 1*(lasso.pred > 0.5)
+
+dff = colSums(lasso.cpred == testy)/nrow(lasso.cpred) # count of correctly predicted instances 
+deviance = colSums(-2*(log(lasso.pred)*testy + log(1-lasso.pred)*(1-testy)))
+plot(log(model.lasso$lambda),dff)
+plot(log(model.lasso$lambda),deviance)
+# choose the optimal level of regularization based on deviance
+best = which.min(deviance)
+coef = predict(model.lasso,s=model.lasso$lambda[best],type='coefficients')
+min_dev = min(deviance)
+
+alphas = seq(0,1,.1)
+rs = data.frame(alpha = alphas,dev = rep(NA,length(alphas)))
+i = 1
+for (a in rs$alpha) {
+  model = glmnet(trainX,trainy,alpha=a,family = "binomial")
+  plot(model)
+  pred = predict(model,newx=testX,type="response")
+  deviance = colSums(-2*(log(pred)*testy + log(1-pred)*(1-testy)))
+  min_dev = min(deviance)
+  print(a)
+  print(min_dev)
+  rs[i,'dev']<-min_dev
+  i <- i+1
+  
+}
+
 
 
 
