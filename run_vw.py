@@ -41,9 +41,10 @@ def run(train,test,l1,l2,run,mode,mode_name,name):
     if "logistic" in mode:
 	vw.sigmoid_file(pred_name)
 	vw.sigmoid_file(train_pred)
-	
-    p_train = vw.read(train_pred)
+
     p_test = vw.read(pred_name)
+    p_train = vw.read(train_pred)
+    
 
     if "logistic" in mode:
 	rmse_train = vw.divergence(p_train,actual_train) 
@@ -82,8 +83,8 @@ call("python ~/code/extract_target.py "+train,shell=True)
 call("python ~/code/extract_target.py "+test,shell=True)
 
 # read in the actual_train and actual_test
-actual_train = vw.read(train+".target")
-actual_test = vw.read(test+".target")
+actual_train = vw.read(train+".target") # this will be integer valued counts
+actual_test = vw.read(test+".target") # this will also be integer valued counts
 
 # if we are doing logistic regression then I need to convert the target values to -1,1 in the training set ONLY
 if "logistic" in mode:
@@ -91,7 +92,7 @@ if "logistic" in mode:
 	train = name+"cltrain"
  
 if is_test:
-    l1_list = [.00000001,.0000001,.000001,.00001,.0001,.001]#[0,0.0000000000001,.00000001,.0000001,.000001,.00001,.0001,.001]
+    l1_list = [0,0.0000000000001,.00000001,.0000001,.000001,.00001,.0001,.001]
     l2_list = [0]
 else:
     l1_list = [0,0.0000000000001,.00000001,.0000001,.000001,.00001,.0001,.001]
