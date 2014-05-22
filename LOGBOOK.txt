@@ -422,4 +422,48 @@ Grid sizes, 200 -> 212x235, 1000 -> 43x47, 5000 -> 9x9
 20140509
 valid.target has the wrong number of entries in it for some reason...
 
+201405013
+java -jar crime.jar /home/finn/phd/data/20140513/ 1k cells1k.txt 1826 43 47 false false 0 4 1 7 28 365 crime burglary prem RESIDENCE
+
+Can you automatically detect what things are required to be learned before other things. - by looking through textbooks and seeing what concepts precede others. 
+
+Find robust recipies - search through recipes and find ones where there are lots of varients with different ratios of ingredients. Suggests getting it exact is not critical. (similarly cooking times,...)
+
+feature selection - at namespace level first. Followed by individual features. Forward stepwise, least angle regression or threshold with lasso penalty. Try doing a big elastic net model, with all the parameters and see what happens ... 
+
+Then set up postgis/postgres and generate spatial features... Try to duplicate what was done by Brown et al. Compare how models do (just working on the crime data itself) , KDE, simple average, linear model based on counts, linear model based on grouped categorical. See if I can't run a smaller version of the model in glmnet as a test.
+
+Trying to do simple logistic regression with VW. Why are all my predictions coming out as a constant value ???
+# commands
+rm -rf /tmp/vw*
+vw --cache_file /tmp/vw.train  --passes 50 -f model --readable_model model.read -d logistic_train --loss_function logistic
+vw -t -i model -p pred -d logistic_valid
+Interestingly, it seems to take a lot of passes for sgd to converge for logistic loss. About 1000 were required on my tiny toy data set to get the same results as from glm in R.
+
+Seems to be working on my simple toy model. Back to the real problem.
+
+vw --cache_file /tmp/vw.train  --passes 500 -f modelA --readable_model modelA.read -d train1845.tmp --loss_function logistic
+vw -t -i modelA -p predA -d VW1kvalid
+
+20140519
+java -jar crime.jar /home/finn/phd/data/20140519/ 1k cells1k.txt 1826 43 47 true true 0 4 1 7 28 365 crime burglary prem RESIDENCE
+
+
+20140521
+It should be possible to build some priors on what forms various non-linearities certain features might have from the criminology theory. For example, when trying to caclualte the risk of a burglary, the number of possible targets (residences) is likely to be relevent.
+less serious crime may be more predictive than more serious ones, purely due to sparcity issues.
+
+suppose I wanted to look at ways of grouping events to find features in a more data driven way. IE appartments, driveways and residences might be similar. Can I use something like mutual information or PCA. Do I need to/can I incorporate spatial information?. Think about correlations - are events at residences almost always burglaries?. What clusters of different categories exist. Similarly certain times of day may be more similar to one-another than others. 
+
+Immediate goal - additional features. Partition Dallas into some kind of grid (like a rectangular one or based on census data)
+get some variables - census data for each grid square, weather for each period of time.
+
+We can ask the question, to what extent does crime look like contaigion? After accounting for other (spatio-temporal) variables, to what extent is a previous crime predictive of a subsequent one. How does this vary by type of crime. 
+
+Ask the economists if they have worked with census data, and if they know what tables/variables I should use, aggregated at the census tract or block group level (or block). I have the geographic components. There are 28,000 blocks (rougly) in dallas.
+
+java -jar crime.jar /home/finn/phd/data/20140519/ 1ks35b cells1ks35.txt 1826 43 47 false false 0 2 7 365 crime burglary
+
+
+
 

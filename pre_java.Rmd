@@ -172,47 +172,50 @@ d$crime_bin <- as.factor(d$crime_bin)
 
 
 d <- d[d$year < 2005,]
-d <- d[d$crime_trunk=='burglary' & d$prem=='RESIDENCE',]
+d <- d[d$sector==35,]
 d <- d[!is.na(d$lat),]
+
+d_all <- d_all[d_all$sector==35,]
+
 ```
 
 ```{r}
 cells200 <- aggregate(ones~cell200+cell1000+cell5000,data = d_all,sum)
-a200 <- as.data.frame(cells200[,c('cell200')])
-names(a200) <- c('area')
-output200 <- d[,c('lat','lon','day','cell200','crime_trunk','prem')]
-names(output200) <- c('lat','lon','period','area','crime','prem')
-write.table(output200,"/home/finn/phd/data/20140505/events200.txt",sep="|",row.names=FALSE,col.names=TRUE,quote=FALSE)
-write.table(a200,"/home/finn/phd/data/20140505/cells200.txt",sep="|",row.names=FALSE,col.names=TRUE,quote=FALSE)
+#a200 <- as.data.frame(cells200[,c('cell200')])
+#names(a200) <- c('area')
+#output200 <- d[,c('lat','lon','day','cell200','crime_trunk','prem')]
+#names(output200) <- c('lat','lon','period','area','crime','prem')
+#write.table(output200,"/home/finn/phd/data/20140519/events200.txt",sep="|",row.names=FALSE,col.names=TRUE,quote=FALSE)
+#write.table(a200,"/home/finn/phd/data/20140519/cells200.txt",sep="|",row.names=FALSE,col.names=TRUE,quote=FALSE)
 
 
 #a1000 <- unique(a200[,c('area1000','area5000')])
 #a1000$areaall <- rep(1,nrow(a1000))
 #names(a1000) <- c('area','area5000','areaall')
-a1000 <- as.data.frame(unique(a200[,c('area1000')]))
+a1000 <- as.data.frame(unique(cells200[,c('cell1000')]))
 names(a1000) <- c('area')
 
-output1000 <- d[,c('lat','lon','day','cell1000','ones')]
-names(output1000) <- c('lat','lon','period','area','tot')
-#output1000 <- d[,c('lat','lon','week','cell1000', 'cell5000','ones','crime_bin','prem','ones')]
-#names(output1000) <- c('lat','lon','period','area','area5000','areaall','crime','prem','ones')
+#output1000 <- d[,c('lat','lon','day','cell1000','ones')]
+#names(output1000) <- c('lat','lon','period','area','tot')
+output1000 <- d[,c('lat','lon','day','cell1000','crime_bin')]
+names(output1000) <- c('lat','lon','period','area','crime')
 #output1000 <- d[,c('lat','lon','week','cell1000', 'cell5000','ones','crime_trunk','prem','ones')]
 #names(output1000) <- c('lat','lon','period','area','area5000','areaall','crime','prem','ones')
 
-write.table(output1000,"/home/finn/phd/data/20140505/events1000bg.txt",sep="|",row.names=FALSE,col.names=TRUE,quote=FALSE)
-write.table(a1000,"/home/finn/phd/data/20140505/cells1000.txt",sep="|",row.names=FALSE,col.names=TRUE,quote=FALSE)
+write.table(output1000,"/home/finn/phd/data/20140519/events1ks35b.txt",sep="|",row.names=FALSE,col.names=TRUE,quote=FALSE)
+write.table(a1000,"/home/finn/phd/data/20140519/cells1ks35.txt",sep="|",row.names=FALSE,col.names=TRUE,quote=FALSE)
 
-a5000 <- data.frame(unique(a200[,c('area5000')]))
+#a5000 <- data.frame(unique(a200[,c('area5000')]))
 #a5000$areaall <- rep(1,nrow(a5000))
 #names(a5000) <- c('area','areaall')
-names(a5000) <- c('area')
-output5000 <- d[,c('lat','lon','day', 'cell5000','crime_trunk','prem')]
-names(output5000) <- c('lat','lon','period','area','crime','prem')
+#names(a5000) <- c('area')
+#output5000 <- d[,c('lat','lon','day', 'cell5000','crime_trunk','prem')]
+#names(output5000) <- c('lat','lon','period','area','crime','prem')
 
 #output5000 <- d[,c('lat','lon','week', 'cell5000','ones','crime_bin','prem','ones')]
 #names(output5000) <- c('lat','lon','period','area','areaall','crime','prem','ones')
-write.table(output5000,"/home/finn/phd/data/20140505/events5000.txt",sep="|",row.names=FALSE,col.names=TRUE,quote=FALSE)
-write.table(a5000,"/home/finn/phd/data/20140505/cells5000.txt",sep="|",row.names=FALSE,col.names=TRUE,quote=FALSE)
+#write.table(output5000,"/home/finn/phd/data/20140505/events5000.txt",sep="|",row.names=FALSE,col.names=TRUE,quote=FALSE)
+#write.table(a5000,"/home/finn/phd/data/20140505/cells5000.txt",sep="|",row.names=FALSE,col.names=TRUE,quote=FALSE)
 
 #n_res_burgs1000 = nrow(output1000[output1000$crime=='burglary' & output1000$prem=='RESIDENCE'&output1000$period > 364,])
 #n_res_burgs200 = nrow(output200[output200$crime=='burglary' & output200$prem=='RESIDENCE'&output200$period > 364,])

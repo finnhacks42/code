@@ -1,8 +1,77 @@
+```{r}
+
+sigmoid <- function(t) {
+  return (1/(1+exp(-t)))
+}
+
+p1 = read.csv("/home/finn/apps/vowpal_wabbit-7.4/finn/featureSelection/pred2",header=FALSE)
+p2= read.csv("/home/finn/apps/vowpal_wabbit-7.4/finn/featureSelection/pred2",header=FALSE)
+act = read.csv("/home/finn/apps/vowpal_wabbit-7.4/finn/featureSelection/VW1kvalid.target",header=FALSE)
+
+summary = read.csv("/home/finn/apps/vowpal_wabbit-7.4/finn/featureSelection/summary",header=FALSE)
+names(summary) <- c('vars','id','div','pai')
+
+summary <- summary[with(summary, order(-pai)), ]
+plot(summary$pai,summary$div)
+
+s = summary[summary$div < 5,]
+plot(s$pai,s$div)
+
+summary <- summary[with(summary, order(-div)), ]
+
+df = data.frame(p1,p2,act)
+names(df) <- c('pred1','pred2','act')
+df$act <- 1*(df$act > 0)
+df$r1 = sigmoid(df$pred1)
+df$r2 = sigmoid(df$pred2)
+df$c1 = 1*(df$r1 >0.5)
+df$c2 = 1*(df$r2 > 0.5)
+
+df$dev1 = -2*(log(df$r1)*df$act+log(1-df$r1)*(1-df$act))
+df$dev2 = -2*(log(df$r2)*df$act+log(1-df$r2)*(1-df$act))
+
+
+
+sum(df$c1)
+sum(df$c2)
+sum(df$act)
+sum(df$dev1/nrow(df))
+sum(df$dev2/nrow(df))
+sum((df$c1==df$act)/nrow(df))
+sum((df$c2==df$act)/nrow(df))
+sum(df$act)/nrow(df)
+
+# produce classification error table from pred and actual
+table(df$c1,df$act)
+table(df$c2,df$act)
+
+```
+
+```{r}
+
+
+x = 1:10
+sigmoid(x)
+```
 
 ```{r}
 
 train = read.csv("/home/finn/phd/data/logistic_train.csv")
 test = read.csv("/home/finn/phd/data/logistic_test.csv")
+
+
+
+# base logistic regression - no regularization
+logit <- glm(target ~ ., data = train, family = "binomial")
+p = predict(logit,newdata=test,type='response')
+result = test
+result$prob = p
+result$class = (p > 0.5)*1
+result$deviance = -2*(log(result$prob)*result$target+log(1-result$prob)*(1-result$target))
+correct_ratio = sum(result$class == result$target)/nrow(result)
+deviance = sum(result$deviance)/nrow(result)
+result$prob2 = p2$V1
+
 
 
 # do the same thing with gmlnet
@@ -48,3 +117,92 @@ coef = predict(model.lasso,s=model.lasso$lambda[best],type='coefficients')
 min_dev = min(deviance)
 
 ```
+
+class imbalance experiments
+```{r}
+
+set.seed(1)
+sigmoid <- function(x) {
+  return(1/(1+exp(-x)))
+}
+n = 10000
+noise = rnorm(n)
+x = rep(1,n)
+x2 = runif(n,min=-1,max=1)
+x4 = runif(n,min=-1,max=1)
+noise = rnorm(n,mean=0,sd=1)
+risk = sigmoid(-7*x+3*x2+3*x4+noise)
+
+y = (runif(n) < risk)*1
+hist(risk)
+#y = (risk > 0.5)*1
+c <- as.factor(y)
+plot(x2,x4,col=c)
+summary(c) # here I have a class imbalance ...
+
+data = data.frame(cbind(y,x2,x4))
+# now do simple logistic regression.
+
+# base logistic regression - no regularization
+logit <- glm(y ~ ., data = data, family = "binomial")
+p = predict(logit,newdata=data,type='response') # returns the 'probabilities'
+data$prob = p
+data$class = 1*(data$prob > 0.5)
+table(data$y,data$class)
+
+# now what happens if we weight examples based on their frequency
+
+# now what happens if we do the combination trick
+positive = data[data$y==1,c('y','x2','x4')]
+names(positive) = c('y.p','x2.p','x4.p')
+negative = data[data$y==0,c('y','x2','x4')]
+names(negative)=c('y.n','x2.n','x4.n')
+merged = merge(positive,negative,all.x=TRUE) # take each row of pos, and follow by each row of negative
+merged$x2 = merged$x2.p - merged$x2.n
+merged$x4 = merged$x4.p - merged$x4.n
+data2_tmp = merged[,c('y.p','x2','x4')]
+data2_rv = -data2_tmp
+data2 = rbind(data2_tmp,data2_rv)
+
+names(data2) = c('y','x2','x4')
+data2$y = 1*(data2$y > 0)
+rank = glm(y~.,data=data2,family = "binomial")
+# now predict on the original data
+p2 = predict(rank,newdata=data,type='response')
+data$prob2 = p2
+data$class2 = 1*(data$prob2 > 0.5)
+table(data$y,data$class2)
+
+#plot some roc curves
+# naive version, other version...
+
+
+# what do we even mean when we say the estimate of the mean is systematically biased downwards for small samples when using unbalanced logistic regression?
+
+# I want to be very clear what the model is and what assumptions it contains, and what goes wrong when these assumptions are not fullfilled in the real world.
+# assumptions, iid samples, distribution of errors, ...
+# why do models, ever work - because sometimes you can get away with violations of the model.
+# what happens when various things occur - non-linearity, correlated variables, violations of error assumptions, class imbalance, finite samples, including irrelevent variables, missing relevent variables.
+
+data = data[with(data,order(-prob)),]
+fp = cumsum(data$y==0)/sum(data$y==0)
+tp = cumsum(data$y==1)/sum(data$y==1)
+plot(fp,tp,type="l")
+data = data[with(data,order(-prob2)),]
+fp = cumsum(data$y==0)/sum(data$y==0)
+tp = cumsum(data$y==1)/sum(data$y==1)
+lines(fp,tp,col='red')
+
+# what if I want to plot lift curves
+x = 1:nrow(data)/nrow(data) # fraction of areas included
+plot(x,tp) 
+
+# conclusion - A scoring classifier can produce a good AUC for a highly class imbalanced problem, even when thresholding at 0.5 yeilds the trivial all 0 prediction.
+
+
+```
+
+
+
+
+
