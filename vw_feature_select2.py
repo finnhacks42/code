@@ -21,7 +21,7 @@ def run(ns_features,name):
     vw.create_mask_file(ns_features,mask)
     #vw.featureMask(featureIDs,train,train_data) # create a training data set with the specified subset of features
 
-    train_call = "vw --loss_function logistic --holdout_off --passes 100 --cache_file {} --feature_mask {} -f {} --readable_model {} -d {} 2> {}".format(TRAIN_CACHE,mask,model,model+"read",TRAIN_FILE,outname)
+    train_call = "vw --loss_function logistic --holdout_off --passes 10 --cache_file {} --feature_mask {} -f {} --readable_model {} -d {} 2> {}".format(TRAIN_CACHE,mask,model,model+"read",TRAIN_FILE,outname)
     print train_call
     test_call = "vw -t --cache_file {} -i {} -p {} -d {} 2> {}".format(TEST_CACHE,model,pred,TEST_FILE,testout)
     
@@ -38,7 +38,7 @@ def run(ns_features,name):
     div = vw.divergence2(pred,ACTUAL) #evaluate the performance of the model
     #print "CALCULATING PAI"
     pred = vw.sigmoid(pred)
-    area = vw.meanPaiArea(pred,ACTUAL,111) #WARNING NUMBER OF AREAS IS HARDCODED...WARNING
+    area = vw.meanPaiArea(pred,ACTUAL,1011) #WARNING NUMBER OF AREAS IS HARDCODED...WARNING
     print ns_features,div,area
     SUMMARY_FILE.write("{},{},{},{}\n".format(":".join([str(x) for x in ns_features]),name,div,area))
     return area

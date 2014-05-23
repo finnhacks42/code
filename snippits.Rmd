@@ -6,8 +6,8 @@ names(df) = c('actual','pred')
 plot(df$actual,df$pred)
 
 
-s = read.csv("/home/finn/apps/vowpal_wabbit-7.4/finn/summary.fixed",header=F)
-names(s) <- c('features','div','pai')
+s = read.csv("/home/finn/apps/vowpal_wabbit-7.4/finn/summary",header=F)
+names(s) <- c('features','id','div','pai')
 s <- s[with(s,order(-pai)),]
 head(s)
 

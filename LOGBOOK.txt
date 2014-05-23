@@ -464,6 +464,27 @@ Ask the economists if they have worked with census data, and if they know what t
 
 java -jar crime.jar /home/finn/phd/data/20140519/ 1ks35b cells1ks35.txt 1826 43 47 false false 0 2 7 365 crime burglary
 
+Non-parametric models - some kind of generalized additive model with MORE DATA, sort of feels like a logical next step. This is very similar to the path taken by Brown et. al. Transforms to the feature space - to allow for non-linearity. On the other hand, Brown et al had a relatively small set of data (100's of features). Maybe we can find 1000's. 
+
+What do I have to say thus far ...
+
+I have tried dealing with class imbalance - but although the imbalance does cause logistic regression consistantly under predict the number of positive examples, it does not appear to cause probelms for the ranking - and thus does not effect the current metric we are using.I have tried encoding time in the data in a different way, and on small sample data have not seen improvement on previous results. The plan is to introduce more data - so feature selection/regularization will be a continuing issue. - thinking about that.
+
+As far as Markov Random Field models go - I'm doing a lot of reading and trying to familiarize myself with the models in general - but I havent got any strong ideas on how our actual problem would be well represented by a Markov Random Field. The key (as I see it ) to Markov Random Fields is that you expect a strong relationship between the outcome variables GIVEN all the covariates. The obvious way of creating a Markov Random Field for crime would be to say that 'nearby' areas should have similar levels of crime, but its not clear that this has to be true on a given day. 
+
+People will go for smarts but it has to be easy to be lazy - if you have to scan barcodes, its not going to fly ...
+
+Just look at repeat events at addresses classed as resdiences (at some point). The actual event may sometimes occur in their driveway etc. 
+How much bigger is the repeat event effect when done accross crime than within a given crime category.
+Can I model how much a previous crime at an address increases the risk of a subsequent one, after accounting for other variables.To what extent is there a contagion effect after accounting for other variables? 
+
+Feature selection - bts data - pull out the variables with the largest counts (as they are likely to be less broken down) ie total workers.
+modify the giant table code to pull out the number of non-zero entries and the mean entry value (including 0) and put them into the features csv output
+
+
+
+
+
 
 
 

@@ -172,10 +172,10 @@ d$crime_bin <- as.factor(d$crime_bin)
 
 
 d <- d[d$year < 2005,]
-d <- d[d$sector==35,]
+#d <- d[d$sector==35,]
 d <- d[!is.na(d$lat),]
 
-d_all <- d_all[d_all$sector==35,]
+#d_all <- d_all[d_all$sector==35,]
 
 ```
 
@@ -197,13 +197,13 @@ names(a1000) <- c('area')
 
 #output1000 <- d[,c('lat','lon','day','cell1000','ones')]
 #names(output1000) <- c('lat','lon','period','area','tot')
-output1000 <- d[,c('lat','lon','day','cell1000','crime_bin')]
-names(output1000) <- c('lat','lon','period','area','crime')
+output1000 <- d[,c('lat','lon','day','cell1000','crime_trunk','prem')]
+names(output1000) <- c('lat','lon','period','area','crime','prem')
 #output1000 <- d[,c('lat','lon','week','cell1000', 'cell5000','ones','crime_trunk','prem','ones')]
 #names(output1000) <- c('lat','lon','period','area','area5000','areaall','crime','prem','ones')
 
-write.table(output1000,"/home/finn/phd/data/20140519/events1ks35b.txt",sep="|",row.names=FALSE,col.names=TRUE,quote=FALSE)
-write.table(a1000,"/home/finn/phd/data/20140519/cells1ks35.txt",sep="|",row.names=FALSE,col.names=TRUE,quote=FALSE)
+write.table(output1000,"/home/finn/phd/data/20140519/events1k.txt",sep="|",row.names=FALSE,col.names=TRUE,quote=FALSE)
+write.table(a1000,"/home/finn/phd/data/20140519/cells1k.txt",sep="|",row.names=FALSE,col.names=TRUE,quote=FALSE)
 
 #a5000 <- data.frame(unique(a200[,c('area5000')]))
 #a5000$areaall <- rep(1,nrow(a5000))
