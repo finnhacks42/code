@@ -11,7 +11,7 @@ from time import strftime
 import numpy as np
 import sys
 
-
+# have many more namespaces and turn them on-off one at a time ...
 
 def run(train,test,l1,l2,run,mode,mode_name,name):   
     model_name = name+mode_name+str(run)+".mod"

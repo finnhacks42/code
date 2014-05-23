@@ -1,0 +1,33 @@
+```{r}
+actual = read.csv("/home/finn/apps/vowpal_wabbit-7.4/finn/featureSelection/VW1kvalid.target")
+pred = read.csv("/home/finn/apps/vowpal_wabbit-7.4/finn/featureSelection/pred20")
+df = cbind(actual,pred)
+names(df) = c('actual','pred')
+plot(df$actual,df$pred)
+
+
+s = read.csv("/home/finn/apps/vowpal_wabbit-7.4/finn/summary",header=F)
+names(s) <- c('features','id','div','pai')
+s <- s[with(s,order(-pai)),]
+head(s)
+
+t1 = read.csv("/home/finn/phd/data/3rdparty/bts/tract/477170655_P1-001.csv",header=T)
+t2 = read.csv("/home/finn/phd/data/3rdparty/bts/tract/477170655_P1-002.csv",header=T)
+t3 = read.csv("/home/finn/phd/data/3rdparty/bts/tract/477170655_P1-003.csv",header=T)
+
+
+library(glmnet)
+m = readMM("/home/finn/phd/data/3rdparty/bts/tract/giant_table.mm")
+key = m[,1]
+
+
+
+y = m[,1]
+y = 1*(y > 0)
+X = m[,2:ncol(m)]
+rm(m)
+
+fit.lasso = fit1=glmnet(X,y,alpha=1,family = "binomial")
+
+```
+
