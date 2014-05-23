@@ -28,6 +28,14 @@ def toVW(mdarray,mode="regr"):
                     s += " "+str(feature_name)+":"+str(feature)
             vw_rows.append(s)
         return vw_rows
+
+def saveToVW(filename,mdarray,mode="regr"):
+        lines = toVW(mdarray,mode)
+        f = open(filename,"w")
+        for line in lines:
+                f.write(line+"\n")
+        f.close()
+        
     
     
 
@@ -76,6 +84,27 @@ def parsePAI():
             pai_groups.append(PAIGroup(g))
     return pai_groups
 
+
+# generates a baseline prediction, with a prediction for each day/area that is equal to the average number of events in that area over the training set
+def write_baseline(train_actual,num_areas,pred_length,filename):
+        # input in train actual is assumed to be target for {(a1...a_num_areas)period1; (a1...a_num_areas)period2 ... numPeriods}
+        num_times = len(train_actual)/num_areas
+        total = np.array([0]*num_areas)
+        for period in range(num_times):
+                a = period*num_areas
+                b = a+num_areas
+                train_slice = np.array(train_actual[a:b])
+                total = total+train_slice
+        total = total/float(num_times)
+        # total is now the total for each area
+        num_pred_times = pred_length/num_areas
+        o = open(filename,"w")
+        for p in range(num_pred_times):
+                for area in total:
+                        o.write(str(area)+"\n")
+        o.close()
+                             
+
 def pai(pred,actual,num_areas):
     # return a list of the average cumsum of the actual crime, ordered by the predicted area
     # "                the standard error of the above
@@ -116,7 +145,7 @@ def roc(pred, actual):
     return area(normalized)
 
 # returns an indication of the classification error. Pred is assumed to be a probability of counts > 1. Actual is number of counts
-def class_er(pred,actual):
+def class_err(pred,actual):
 	if len(pred) != len(actual):
 		raise ValueError("Predicted and actual lengths differ:"+str(len(pred))+" vs "+str(len(actual)))
 	correct = 0
@@ -125,7 +154,19 @@ def class_er(pred,actual):
 		aclass1 = actual[i] > 0
 		if pclass1 == aclass1:
 			correct +=1
-	return 1 - float(correct)/len(pred)	
+	return 1 - float(correct)/len(pred)
+
+# returns an the divergence measure of classification error. Pred is assumed to be a probability of counts > 1. Actual is number of counts
+def divergence(pred,actual):
+	if len(pred) != len(actual):
+		raise ValueError("Predicted and actual lengths differ:"+str(len(pred))+" vs "+str(len(actual)))
+	divergence = 0
+	for i in range(len(pred)):
+                if actual[i] > 0:
+                        divergence += -2*math.log(pred[i])
+                else:
+                        divergence += -2*math.log(1-pred[i])
+	return divergence/float(len(pred))
 
 def rmse(pred, actual):
     if len(pred) != len(actual):

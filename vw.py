@@ -166,7 +166,7 @@ def divergence(pred,actual):
                         divergence += -2*math.log(pred[i])
                 else:
                         divergence += -2*math.log(1-pred[i])
-	return divergence
+	return divergence/float(len(pred))
 
 def rmse(pred, actual):
     if len(pred) != len(actual):
