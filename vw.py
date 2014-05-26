@@ -6,6 +6,55 @@ import os
 import string
 from subprocess import call
 
+def findFile(ending,names):
+    matches = [x for x in names if x.endswith(ending)]
+    if len(matches) != 1:
+        raise ValueError("Directory must contain exactly one file ending with "+ending+":"+",".join(matches))
+    return matches[0]
+
+
+    
+
+""" returns a list of maps from namespace to features in that namespace"""
+def extract_ns_features(vw_file):
+    reader = VWReader(vw_file)
+    parser = VWLineParser()
+    reader.parse(parser)
+    return parser.get_ns_feature_map()
+
+""" creates a new ns_feature with only the specified featureID. Will raise an error if there are multiple features with the specified ID (under different namespaces)"""
+def ns_features_for_featureID(ns_features,featureID):
+    result = []
+    for ns, features in ns_features.iteritems():
+        if featureID in features:
+            result.append(ns)
+    if len(result) > 1:
+        raise ValueError("Specified featureID appeared in multiple namespaces {}".format(result))
+    if len(result) == 0:
+        raise ValueError("Specified featureID not found")
+    namespace = result[0]
+    return {namespace:[featureID]}
+
+
+""" Creates a vw model file by running vw on dummy data. The weights for each feature should be 1"""
+def create_linear_model_file(ns_features,model_name):
+    l = sum([len(x) for x in ns_features.values()])
+    n = 1000*l
+    x = np.random.uniform(-1,1,size=(n,l))
+    w = np.ones((l,1))
+    y = np.dot(x,w)
+    data = np.concatenate((y,x),axis=1) # creates a data set where the first column is target = x1+x2+...x_l
+    train_file = "dummy_data"
+    writeTestData(data,ns_features,train_file)
+    print "CREATING DUMMY MODEL"
+    traincall = "vw -d {} -f {} --readable_model {}".format(train_file,model_name,model_name+".read")
+    call(traincall,shell=True) # run vw to create the model
+    call("rm -f {}".format(train_file),shell=True) # remove the dummy data
+
+
+
+    
+
 class VWLineParser:
         def __init__(self):
                 self.ns_features = {}
@@ -22,6 +71,12 @@ class VWLineParser:
                 return (featureID,featureValue)
         def target(self,target):
                 return target
+
+        def get_ns_feature_map(self):
+            result = {}
+            for key,value in self.ns_features.iteritems():
+                result[key] = list(value)
+            return result
         
         
         

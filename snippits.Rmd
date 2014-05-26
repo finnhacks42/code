@@ -1,4 +1,7 @@
 ```{r}
+
+a = read.csv("/home/finn/phd/data/20140519/events1k.txt",sep="|")
+
 actual = read.csv("/home/finn/apps/vowpal_wabbit-7.4/finn/featureSelection/VW1kvalid.target")
 pred = read.csv("/home/finn/apps/vowpal_wabbit-7.4/finn/featureSelection/pred20")
 df = cbind(actual,pred)

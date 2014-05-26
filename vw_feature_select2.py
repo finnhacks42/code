@@ -5,11 +5,7 @@ import vw
 from subprocess import call
 import copy
 
-def findFile(ending,names):
-    matches = [x for x in names if x.endswith(ending)]
-    if len(matches) != 1:
-        raise ValueError("Directory must contain exactly one file ending with "+ending+":"+",".join(matches))
-    return matches[0]
+
 
 """ Run VW with a given set of features, and name to apply to the models, etc"""
 def run(ns_features,name):
@@ -40,7 +36,9 @@ def run(ns_features,name):
     pred = vw.sigmoid(pred)
     area = vw.meanPaiArea(pred,ACTUAL,1011) #WARNING NUMBER OF AREAS IS HARDCODED...WARNING
     print ns_features,div,area
-    SUMMARY_FILE.write("{},{},{},{}\n".format(":".join([str(x) for x in ns_features]),name,div,area))
+    feature_str = ":".join([str(x) for x in ns_features])
+    print feature_str
+    SUMMARY_FILE.write("{},{},{},{}\n".format(ns_features,name,div,area))
     return area
 
 def addTo(subset,f):
@@ -62,23 +60,19 @@ SUMMARY_FILE = open("summary","w")
 files = os.listdir(".")
 
 # get the names of the training and validation data sets
-train = findFile("train",files)
-TEST_FILE = findFile("valid",files)
+train = vw.findFile("train",files)
+TEST_FILE = vw.findFile("valid",files)
 
-# read in the features file and get a list of all the ids of the features in the data set
-#features = findFile("features.txt",files)
-#features = vw.readFeatureFile(features).keys() # the possible set of features we need to try. Doesn't work at the momment as namespace not there
-reader = vw.VWReader(train)
-parser = vw.VWLineParser()
+# read in the features file and get a list of namespace to feature maps, one for each of the ids of the features in the data set
+reader = VWReader(train)
+parser = VWLineParser()
 reader.parse(parser)
-
 features = []
 for key,values in parser.ns_features.iteritems():
     # separate entry for each feature
-    for feature in values:
-        features.append({key:[feature]})
-
-        
+     for feature in values:
+         features.append({key:[feature]})
+    
 
 # extract the target value from the validation file
 call("python ~/code/extract_target.py "+TEST_FILE,shell=True)
