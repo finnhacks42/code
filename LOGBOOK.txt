@@ -448,6 +448,10 @@ vw -t -i modelA -p predA -d VW1kvalid
 20140519
 java -jar crime.jar /home/finn/phd/data/20140519/ 1k cells1k.txt 1826 43 47 true true 0 4 1 7 28 365 crime burglary prem RESIDENCE
 
+[165,123,164,163] 708
+a1_prem_RESIDENCE_365,target_av1_365,a1_prem_RESIDENCE_28,a1_prem_RESIDENCE_7
+And finally we have a slight improvement on baseline!
+
 
 20140521
 It should be possible to build some priors on what forms various non-linearities certain features might have from the criminology theory. For example, when trying to caclualte the risk of a burglary, the number of possible targets (residences) is likely to be relevent.
@@ -470,7 +474,8 @@ What do I have to say thus far ...
 
 I have tried dealing with class imbalance - but although the imbalance does cause logistic regression consistantly under predict the number of positive examples, it does not appear to cause probelms for the ranking - and thus does not effect the current metric we are using.I have tried encoding time in the data in a different way, and on small sample data have not seen improvement on previous results. The plan is to introduce more data - so feature selection/regularization will be a continuing issue. - thinking about that.
 
-As far as Markov Random Field models go - I'm doing a lot of reading and trying to familiarize myself with the models in general - but I havent got any strong ideas on how our actual problem would be well represented by a Markov Random Field. The key (as I see it ) to Markov Random Fields is that you expect a strong relationship between the outcome variables GIVEN all the covariates. The obvious way of creating a Markov Random Field for crime would be to say that 'nearby' areas should have similar levels of crime, but its not clear that this has to be true on a given day. 
+As far as Markov Random Field models go - I'm doing a lot of reading and trying to familiarize myself with the models in general - but I havent got any strong ideas on how our actual problem would be well represented by a Markov Random Field. The key (as I see it ) to Markov Random Fields is that you expect a strong relationship between the outcome variables GIVEN all the covariates. The obvious way of creating a Markov Random Field for crime would be to say that 'nearby' areas should have similar levels of crime, but its not clear that this has to be true on a given day. I'm trying to get more data. the CTPP data (Census Transport Planning Products) - looks to contain information on place of residence, place of work and journey to work.
+
 
 People will go for smarts but it has to be easy to be lazy - if you have to scan barcodes, its not going to fly ...
 
@@ -480,6 +485,15 @@ Can I model how much a previous crime at an address increases the risk of a subs
 
 Feature selection - bts data - pull out the variables with the largest counts (as they are likely to be less broken down) ie total workers.
 modify the giant table code to pull out the number of non-zero entries and the mean entry value (including 0) and put them into the features csv output
+
+20140526
+java -jar crime.jar /home/finn/phd/data/20140526/ 1ks35b cells1ks35.txt 1826 43 47 false false 0 2 7 365 crime burglary
+
+arts/crafts & fabric design
+
+Anyone interested in some casual evenigs of arts, crafts and a little computing to create your own fabric designs? There is a service called Spoonflower that lets you upload you own fabric desings and get them printed. I'm imagining we play with a mixture of hand and computer arts; painting, drawing, lino cutting, creating coding (no prior knowledge required), inkscape, etc and any other techniques/ideas people would like to try.I've never done this before, so it would be more collaborative project than workshop.You can be as technical or non-technical as you like. 
+
+   
 
 
 

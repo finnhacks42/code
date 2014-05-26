@@ -1,7 +1,4 @@
-from rtree import index
+num_areas = input("number of target areas?")
+baseline_featureID = input("baseline feature ID?")
 
-boxes = index.Index()
-boxes.insert(1,[-97, 32.71, -96, 32.73])
-print list(boxes.intersection((32.72,-96.68)))
-
-
+print num_areas,baseline_featureID

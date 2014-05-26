@@ -16,9 +16,11 @@ import sys
 def run(train,test,l1,l2,run,mode,mode_name,name):   
     model_name = name+mode_name+str(run)+".mod"
     pred_name = name+mode_name+str(run)+".pred"
+    sig_pred_name = name+mode_name+str(run)+".spred"
     outname = name+mode_name+str(run)+".out"
     testout = name+mode_name+str(run)+".tout"
     train_pred = name+"train_pred"
+    sig_train_pred = name+"train_spred"
     trainout = name+"train_test.out"
     train_call = "vw -l .5 --l2 "+str(l2)+" --l1 "+str(l1)+" -d "+train+" --cache_file /tmp/vw.cache -f "+model_name+" --passes 50 --holdout_off "+mode+" 2> "+outname
     train_pred_call = "vw -t -d "+train+" --cache_file /tmp/vw.cache -i "+model_name+" -p "+train_pred +" 2>"+trainout
@@ -39,18 +41,16 @@ def run(train,test,l1,l2,run,mode,mode_name,name):
 
     # converts the predictions to a value between 0-1 indicating the probability of class label = 1
     if "logistic" in mode:
-	vw.sigmoid_file(pred_name)
-	vw.sigmoid_file(train_pred)
-
-    p_test = vw.read(pred_name)
-    p_train = vw.read(train_pred)
-    
-
-    if "logistic" in mode:
+	vw.sigmoid_file(pred_name,sig_pred_name)
+	vw.sigmoid_file(train_pred,sig_train_pred)
+	p_test = vw.read(sig_pred_name)
+	p_train = vw.read(sig_train_pred)
 	rmse_train = vw.divergence(p_train,actual_train) 
 	rmse_test = vw.divergence(p_test,actual_test)
-
+	
     else:
+        p_test = vw.read(pred_name)
+        p_train = vw.read(train_pred)
 	rmse_train = vw.rmse(p_train,actual_train)
 	rmse_test = vw.rmse(p_test,actual_test)
 
@@ -92,7 +92,7 @@ if "logistic" in mode:
 	train = name+"cltrain"
  
 if is_test:
-    l1_list = [0,0.0000000000001,.00000001,.0000001,.000001,.00001,.0001,.001]
+    l1_list = [0]
     l2_list = [0]
 else:
     l1_list = [0,0.0000000000001,.00000001,.0000001,.000001,.00001,.0001,.001]
