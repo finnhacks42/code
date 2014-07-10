@@ -100,12 +100,7 @@ class VWReader:
                                         other = other.split(":")
                                         parser.feature(int(other[0]),float(other[1]))
                 self.f.close()
-                        
-                        
-                
-
-        
-                
+                                      
 
 """ Converts the target of a VW file to -1,1. Label will be 1 if target > 0, -1 otherwise. Returns the name of the output file """ 
 def convertTargetToClassLabel(filename,ofilename):

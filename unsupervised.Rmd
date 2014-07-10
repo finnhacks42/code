@@ -1,0 +1,75 @@
+Title
+========================================================
+
+
+```{r}
+d = read.table("/home/finn/phd/data/geocoded_clean.txt",sep="\t",header=TRUE)
+```
+
+```{r}
+# make a region,crime_type matrix, 40 types of crime, 1139 areas. ~ 2000 crimes per area on average...
+s = d[,c('crime','reportingarea')]
+t = table(s$reportingarea,s$crime) # creates a table with columns for each crime type and rows for each area
+write.table(t,file="/home/finn/phd/data/crime_type_vs_ra.csv",quote=F,sep=",",row.names=F,col.names=T)
+
+# what is the distribution over crime types
+barplot(s$crime)
+# calculate mean for each location, then varience for each location.
+# look at the ratios.
+# see if I can figure out how to do this in Python ...
+
+
+# how much geographical variation is there by crime type - for
+
+
+```
+
+```{r}
+library(rrcov)
+## Reproduce Table 6.3 from Maronna et al. (2006), page 213
+data(bus)
+bus <- as.matrix(bus)
+
+## calculate MADN for each variable
+xmad <- apply(bus, 2, mad)
+cat("\nMin, Max of MADN: ", min(xmad), max(xmad), "\n")
+## MADN vary between 0 (for variable 9) and 34. Therefore exclude
+## variable 9 and divide the remaining variables by their MADNs.
+bus1 <- bus[, -9]
+madbus <- apply(bus1, 2, mad)
+bus2 <- sweep(bus1, 2, madbus, "/", check.margin = FALSE)
+
+
+## Compute classical and robust PCA (Spherical/Locantore, Hubert, MCD and OGK)
+pca <- PcaClassic(bus2)
+rpca <- PcaLocantore(bus2)
+pcaHubert <- PcaHubert(bus2, k=17, kmax=17, mcd=FALSE)
+pcamcd <- PcaCov(bus2, cov.control=CovControlMcd())
+pcaogk <- PcaCov(bus2, cov.control=CovControlOgk())
+ev <- getEigenvalues(pca)
+evrob <- getEigenvalues(rpca)
+evhub <- getEigenvalues(pcaHubert)
+evmcd <- getEigenvalues(pcamcd)
+evogk <- getEigenvalues(pcaogk)
+
+uvar <- matrix(nrow=6, ncol=6)
+svar <- sum(ev)
+svarrob <- sum(evrob)
+svarhub <- sum(evhub)
+svarmcd <- sum(evmcd)
+svarogk <- sum(evogk)
+for(i in 1:6){
+  uvar[i,1] <- i
+  uvar[i,2] <- round((svar - sum(ev[1:i]))/svar, 3)
+  uvar[i,3] <- round((svarrob - sum(evrob[1:i]))/svarrob, 3)
+  uvar[i,4] <- round((svarhub - sum(evhub[1:i]))/svarhub, 3)
+  uvar[i,5] <- round((svarmcd - sum(evmcd[1:i]))/svarmcd, 3)
+  uvar[i,6] <- round((svarogk - sum(evogk[1:i]))/svarogk, 3)
+}
+uvar <- as.data.frame(uvar)
+names(uvar) <- c("q", "Classical","Spherical", "Hubert", "MCD", "OGK")
+cat("\nBus data: proportion of unexplained variability for q components\n")
+print(uvar)
+
+
+```

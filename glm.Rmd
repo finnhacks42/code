@@ -1,9 +1,46 @@
 Title
 ========================================================
+```{r}
 
-This is an R Markdown document. Markdown is a simple formatting syntax for authoring web pages (click the **MD** toolbar button for help on Markdown).
 
-When you click the **Knit HTML** button a web page will be generated that includes both content as well as the output of any embedded R code chunks within the document. You can embed an R code chunk like this:
+```
+
+
+```{r}
+
+library(glmnet)
+m = readMM("/home/finn/phd/data/20140528/VW_tractstrain.mm")
+y = m[,1]
+y = 1*(y > 0)
+X = m[,2:ncol(m)]
+rm(m)
+
+fit.lasso = fit1=glmnet(X,y,alpha=1,family = "binomial")
+
+v = readMM("/home/finn/phd/data/20140528/VW_tractsvalid.mm")
+y.valid = v[,1]
+X.valid = v[,2:ncol(v)]
+rm(v)
+lasso.pred = predict(fit.lasso,newx = X.valid,type='response')
+dff = colSums((lasso.pred - y.valid)^2)
+plot(log(fit.lasso$lambda),dff)
+best = which.min(dff)
+coef = predict(fit.lasso,s=fit.lasso$lambda[best],type='coefficients')
+
+X2 = m[,41:ncol(m)]
+X.valid2 = v[,41:ncol(v)]
+fit.lasso2 = fit1=glmnet(X2,y,alpha=1,family = "binomial")
+lasso.pred2 = predict(fit.lasso2,newx = X.valid2,type='response')
+dff2 = colSums((lasso.pred2 - y.valid)^2) # this looks like squared error and is not what I want to do...
+plot(log(fit.lasso2$lambda),dff2)
+best2 = which.min(dff2)
+coef2 = predict(fit.lasso2,s=fit.lasso2$lambda[best2],type='coefficients')
+```
+
+
+
+
+
 
 ```{r}
 library(glmnet)

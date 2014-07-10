@@ -44,19 +44,20 @@ LAT = "lat"
 LON = "lon"
 KEY = "key"
 WANTED = ["crime_trunk","prem","day"]
+INDEX_OF_REGION_IDENTIFIER = 3 # 3 for tracts file 4 for blocks file ...
 
-sf = shapefile.Reader("/home/finn/phd/data/3rdparty/census_shp/2000/block/dallas.shp")
+sf = shapefile.Reader("/home/finn/phd/data/3rdparty/census_shp/2000/tract/dallas_tracts.shp")
 polygon_shapes = sf.shapes()
 polygons = [Polygon(q.points) for q in polygon_shapes] # creats polygon objects from lists of points
 
-block_ids = [x[4] for x in sf.records()] # pulls out the block id column from each row of attributes in the shapefile
+block_ids = [x[INDEX_OF_REGION_IDENTIFIER] for x in sf.records()] # pulls out the block id column from each row of attributes in the shapefile
 
 rtree_indx = index.Index() # create an r-tree index for fast lookups (creates a nested hierachy of boxes to check)
 for i,q in enumerate(polygon_shapes):
     rtree_indx.insert(i,q.bbox) # add each polygon to the index with the id equal to its row number in the shapefile (and correpondingly the index into block_ids)
 
-outname = "/home/finn/phd/data/geocoded_block.csv"
-outside = "/home/finn/phd/data/geocoded_outside.csv"
+outname = "/home/finn/phd/data/geocoded_tract.csv"
+outside = "/home/finn/phd/data/geocoded_outside_tract.csv"
 key_boundary = {}
 with open('/home/finn/phd/data/geocoded_clean.txt', 'r') as csvfile, open(outname,"w") as out, open(outside,"w") as not_dallas:
     r = csv.reader(csvfile,delimiter="\t",quotechar='"')
@@ -68,6 +69,9 @@ with open('/home/finn/phd/data/geocoded_clean.txt', 'r') as csvfile, open(outnam
     keyIndx = header.index(KEY)
     not_matched = 0
     total = 0
+    header = ["lon","lat","area"]
+    header.extend(WANTED)
+    out.write(",".join(header)+"\n")
     for row in r:
         total +=1
         lat = float(row[latIndx])

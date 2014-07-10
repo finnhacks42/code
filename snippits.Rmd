@@ -9,18 +9,61 @@ names(df) = c('actual','pred')
 plot(df$actual,df$pred)
 
 
-s = read.csv("/home/finn/apps/vowpal_wabbit-7.4/finn/summary",header=F)
+s = read.csv("/home/finn/phd/data/20140519/summary",header=F)
 names(s) <- c('features','id','div','pai')
 s <- s[with(s,order(-pai)),]
+plot(s$div,s$pai)
 head(s)
 
 t1 = read.csv("/home/finn/phd/data/3rdparty/bts/tract/477170655_P1-001.csv",header=T)
 t2 = read.csv("/home/finn/phd/data/3rdparty/bts/tract/477170655_P1-002.csv",header=T)
 t3 = read.csv("/home/finn/phd/data/3rdparty/bts/tract/477170655_P1-003.csv",header=T)
 
+t1 = read.csv("/home/finn/phd/data/3rdparty/bts/tract/p1/443374993_P1-001.csv",header=T)
+
+
+t3 = read.csv("/home/finn/phd/data/3rdparty/bts/tract/p1/giant_matrix.txt",header=T)
+f =read.csv("/home/finn/phd/data/3rdparty/bts/tract/p1/features.txt",header=F)
+f = f[1:(ncol(t3)-1),]
+f$sum = colSums(t3[,2:ncol(t3)],na.rm=T)
+f = f[with(f,order(-sum)),]
+
+features = t3[,c("key","TAB47X1","TAB92X1","TAB90X1","TAB88X1","TAB61X2","TAB61X3","TAB61X4","TAB61X5","TAB50X2","TAB50X3","TAB50X4","TAB50X5","TAB51X14","TAB51X15","TAB51X16","TAB51X17","TAB51X18","TAB51X19","TAB51X20","TAB51X21","TAB51X22","TAB51X23","TAB51X24","TAB51X25","TAB51X26","TAB51X27","TAB51X28","TAB51X29","TAB51X30","TAB51X31","TAB51X32","TAB51X33","TAB51X34","TAB51X35","TAB51X36","TAB87X1","TAB87X2","TAB87X3","TAB87X4","TAB87X5","TAB87X6")]
+features = na.omit(features)
+#  normalize
+scaled = data.frame(scale(features[2:ncol(features)],center=T,scale=T))
+scaled$key = features$key
+
+write.csv(scaled,"/home/finn/phd/data/3rdparty/bts/tract/p1/manual_feature_table.txt",row.names=F)
+
+events = read.csv("/home/finn/phd/data/geocoded_tract.csv",header=T)
+tracts = read.csv("/home/finn/phd/data/3rdparty/census_shp/2000/tract/dallas_tracts.csv",header=T)
+tracts = data.frame(tracts[,c("CTIDFP00")])
+tracts$area = 1:nrow(tracts)
+names(tracts) = c("key","area")
+
+dallas_features = merge(tracts, scaled,by='key')
+dallas_features = dallas_features[,2:ncol(dallas_features)]
+
+write.csv(dallas_features,"/home/finn/phd/data/20140528/dallas_tract_man_bts.txt",row.names=F,quote=F)
+
+events = events[,c(1,2,6,3,4,5)]
+names(events)[1:4] = c('lon','lat','period','key')
+events <- events[events$day < 1827,]
+events = merge(events,tracts,by="key")
+events = events[,c(2,3,4,7,5,6)]
+write.table(events,"/home/finn/phd/data/20140528/events_tracts.txt",row.names=F,quote=F,sep="|")
+
+tracts = data.frame(tracts[,2])
+names(tracts) = c('area')
+write.csv(tracts,"/home/finn/phd/data/20140528/dallas_tracts.txt",row.names=F,quote=F)# write out the cells ...
+
+
+
+
 
 library(glmnet)
-m = readMM("/home/finn/phd/data/3rdparty/bts/tract/giant_table.mm")
+m = readMM("/home/finn/phd/data/3rdparty/bts/tract/p2/giant_table.mm")
 key = m[,1]
 
 
@@ -31,6 +74,16 @@ X = m[,2:ncol(m)]
 rm(m)
 
 fit.lasso = fit1=glmnet(X,y,alpha=1,family = "binomial")
+
+```
+
+
+
+
+PCA and all that
+```{r}
+
+
 
 ```
 

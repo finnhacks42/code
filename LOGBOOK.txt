@@ -489,14 +489,86 @@ modify the giant table code to pull out the number of non-zero entries and the m
 20140526
 java -jar crime.jar /home/finn/phd/data/20140526/ 1ks35b cells1ks35.txt 1826 43 47 false false 0 2 7 365 crime burglary
 
-arts/crafts & fabric design
+Mess with the way we encode time in the model. Think about categorical encoding in non even blocks  - to allow for the fact we expect the dependence on time to change more rapidly when it has been only a short time since the crime, and that there will be a sparcity of data if you are looking at 500 days since last event, etc.
 
-Anyone interested in some casual evenigs of arts, crafts and a little computing to create your own fabric designs? There is a service called Spoonflower that lets you upload you own fabric desings and get them printed. I'm imagining we play with a mixture of hand and computer arts; painting, drawing, lino cutting, creating coding (no prior knowledge required), inkscape, etc and any other techniques/ideas people would like to try.I've never done this before, so it would be more collaborative project than workshop.You can be as technical or non-technical as you like. 
+Read up on dimensionality reduction for count data ... Related to ideas in poisson/logistic regression. Or even better work from an actual model that takes this into account. 
 
-   
+FIELDS TO INCLUDE PRELIMINARY TEST ...
+4313	4313	TAB47X1	TEXT	Total Number of Persons
+6146	6146	TAB92X1	INTEGER	Std. Dev. Of  Household Income: All Households; For All 6 Categories Of Number Of Workers In Household
+6134	6134	TAB90X1	INTEGER	Mean Household Income: All Households; For All 6 Categories Of Number Of Workers In Household
+6122	6122	TAB88X1	TEXT	Median Household Income: All Households; For All 6 Categories Of Number Of Workers In Household
+4683,TAB61X2,TEXT,All Households; Who Owned With Mortgage
+4684,TAB61X3,TEXT,All Households; Who Owned Without Mortgage
+4685,TAB61X4,TEXT,All Households; Who Rented
+4686,TAB61X5,TEXT,All Households; Who Occupied Without Rent
+4317,TAB50X2,TEXT,All Persons; For All 3 Categories Of Hispanic Origin; Where Race Of Person Is White Alone
+4318,TAB50X3,TEXT,All Persons; For All 3 Categories Of Hispanic Origin; Where Race Is Black Or African American Alone
+4319,TAB50X4,TEXT,All Persons; For All 3 Categories Of Hispanic Origin; Where Race Of Person Is Asian Alone
+4320,TAB50X5,TEXT,All Persons; For All 3 Categories Of Hispanic Origin; Where Race Of Person Is All Other Races
+4344,TAB51X14,TEXT,All Persons; That Are Male; Under 16 Years Of Age
+4345,TAB51X15,TEXT,All Persons; That Are Male; 16 And 17 Years Of Age
+4346,TAB51X16,TEXT,All Persons; That Are Male; 18 To 20 Years Of Age
+4347,TAB51X17,TEXT,All Persons; That Are Male; 21 To 24 Years Of Age
+4348,TAB51X18,TEXT,All Persons; That Are Male; 25 To 34 Years Of Age
+4349,TAB51X19,TEXT,All Persons; That Are Male; 35 To 44 Years Of Age
+4350,TAB51X20,TEXT,All Persons; That Are Male; 45 To 54 Years Of Age
+4351,TAB51X21,TEXT,All Persons; That Are Male; 55 To 61 Years Of Age
+4352,TAB51X22,TEXT,All Persons; That Are Male; 62 To 64 Years Of Age
+4353,TAB51X23,TEXT,All Persons; That Are Male; 65 To 74 Years Of Age
+4354,TAB51X24,TEXT,All Persons; That Are Male; 75 Years And Over Of Age
+4355,TAB51X25,TEXT,All Persons; That Are Female; For All 12 Categories Of Age
+4356,TAB51X26,TEXT,All Persons; That Are Female; Under 16 Years Of Age
+4357,TAB51X27,TEXT,All Persons; That Are Female; 16 And 17 Years Of Age
+4358,TAB51X28,TEXT,All Persons; That Are Female; 18 To 20 Years Of Age
+4359,TAB51X29,TEXT,All Persons; That Are Female; 21 To 24 Years Of Age
+4360,TAB51X30,TEXT,All Persons; That Are Female; 25 To 34 Years Of Age
+4361,TAB51X31,TEXT,All Persons; That Are Female; 35 To 44 Years Of Age
+4362,TAB51X32,TEXT,All Persons; That Are Female; 45 To 54 Years Of Age
+4363,TAB51X33,TEXT,All Persons; That Are Female; 55 To 61 Years Of Age
+4364,TAB51X34,TEXT,All Persons; That Are Female; 62 To 64 Years Of Age
+4365,TAB51X35,TEXT,All Persons; That Are Female; 65 To 74 Years Of Age
+4366,TAB51X36,TEXT,All Persons; That Are Female; 75 Years And Over Of Age
+6116,TAB87X1,INTEGER,All Housing Units; For All 6 Categories Of Vacancy Status
+6117,TAB87X2,INTEGER,All Housing Units; Vacancy Status Is For Rent
+6118,TAB87X3,INTEGER,All Housing Units; Vacancy Status Is For Sale Only
+6119,TAB87X4,INTEGER,All Housing Units; Vacancy Status Is For Seasonal; Recreational; Or Occasional Use
+6120,TAB87X5,INTEGER,All Housing Units; Vacancy Status Is All Other Vacant
+6121,TAB87X6,INTEGER,All Housing Units; Vacancy Status Is Occupied
+
+20140528
+The city of Dallas sits accross several counties. Dallas, Denton, Collin, Rockwall
+java -jar crime.jar /home/finn/phd/data/20140528/ _tract dallas_tracts.csv 1826 43 47 false false 0 3 7 28 365 crime burglary prem RESIDENCE
+python ~/code/run_vw.py 
+finn@holly:/data: python ~/code/run_vw.py VW_tractstrain VW_tractsvalid 347 --mode "--loss_function logistic"
+
+Get a subsample of the data and work with it in R. Possibly using glm. Consider undersampling the negative examples. 
+Come up with a cross-validation scheme.
+
+Build a data set I can work with in R - say 20 demographic features, like median income, median house value, median years education, number of males, race?
 
 
+Medicare Fraud ideas:
+How do we validate findings? What is an outlier? Ending with 0.Prices higher for people who have reached the safety net.
+Start with the trivial and move upward.
 
+Plugin Machine Learning with additional constraints
+
+Think about incentives. 1) Estimate how long each type of procedure takes, 2) Look at the cost. 3) Look for over-percscription of high benifit procudures. The question is, is a provider number and individual doctor or a practise?
+
+Do we have data on if practices bulk bill? Patients will be much more likely to check/object if cost is not bulk billed.
+
+
+Android: Netrunner: interesting looking 2 players. Allowed to buy it if you give a talk or prepare a poster.
+
+Question, Do other ML algorithms, for example decision trees turn out to be likely to return causal structure (even if not designed to do so) 
+
+
+The story of crime - a poster. 
+
+Goal is to predict crime. 
+
+Kernel density estimates with different smoothing parameters and the curves they generate.What census data variables did I extract. Were they sensible ones. How can I use unsupervised learning to select a subset of features (unsupervised) to give me maximum variability in the data.
 
 
 

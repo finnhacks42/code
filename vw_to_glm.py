@@ -1,5 +1,6 @@
 # convert VW to GLM sparse input (matrix market format)
 import re
+import sys
 
 def readVWLine(line):
     line = line.split("|")
@@ -89,7 +90,10 @@ def writeMM(name, outname):
     f.close()
     o.close()
 
-name = "/home/finn/phd/data/20140505/VW1000bgvalid"
+name = sys.argv[1]
+
+
+#name = "/home/finn/phd/data/20140505/VW1000bgvalid"
 outname = name+".mm"
 
 
