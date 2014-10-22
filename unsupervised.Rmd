@@ -6,6 +6,19 @@ Title
 d = read.table("/home/finn/phd/data/geocoded_clean.txt",sep="\t",header=TRUE)
 ```
 
+
+```{r}
+# lets pull out just the badge to reporting area graphs
+s = d[,c('reportingarea','reporting_officer_badge1')]
+t = table(s)
+
+#t = data.frame(table(s))
+#t = t[t$Freq > 0,]
+#names(t) = c("target","source","weight")
+write.table(t,file="/home/finn/phd/data/cop_ra.csv",quote=F,sep=",",row.names=F,col.names=T)
+```
+
+
 ```{r}
 # make a region,crime_type matrix, 40 types of crime, 1139 areas. ~ 2000 crimes per area on average...
 s = d[,c('crime','reportingarea')]

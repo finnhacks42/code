@@ -1,0 +1,49 @@
+(* Content-type: application/vnd.wolfram.mathematica *)
+
+(*** Wolfram Notebook File ***)
+(* http://www.wolfram.com/nb *)
+
+(* CreatedBy='Mathematica 10.0' *)
+
+(*CacheID: 234*)
+(* Internal cache information:
+NotebookFileLineBreakTest
+NotebookFileLineBreakTest
+NotebookDataPosition[       158,          7]
+NotebookDataLength[       984,         39]
+NotebookOptionsPosition[       755,         26]
+NotebookOutlinePosition[      1089,         41]
+CellTagsIndexPosition[      1046,         38]
+WindowFrame->Normal*)
+
+(* Beginning of Notebook Content *)
+Notebook[{
+Cell[BoxData[
+ RowBox[{
+  RowBox[{"Factor", " ", "multiplication", " ", "for", " ", "Mathematica"}], 
+  " ", "..."}]], "Input",
+ CellChangeTimes->{{3.619136885331826*^9, 3.619136892543045*^9}}]
+},
+WindowSize->{808, 883},
+WindowMargins->{{Automatic, 313}, {0, Automatic}},
+FrontEndVersion->"10.0 for Linux x86 (64-bit) (June 27, 2014)",
+StyleDefinitions->"Default.nb"
+]
+(* End of Notebook Content *)
+
+(* Internal cache information *)
+(*CellTagsOutline
+CellTagsIndex->{}
+*)
+(*CellTagsIndex
+CellTagsIndex->{}
+*)
+(*NotebookFileOutline
+Notebook[{
+Cell[558, 20, 193, 4, 32, "Input"]
+}
+]
+*)
+
+(* End of internal cache information *)
+
